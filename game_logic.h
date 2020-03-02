@@ -6,6 +6,7 @@
 #include <string>
 #include <fstream>
 #include <queue>
+#include <cmath>
 
 using namespace std;
 
@@ -18,7 +19,7 @@ using namespace std;
 #define MINESWEEPER_HARD_WIDTH 30
 #define MINESWEEPER_HARD_HEIGHT 16
 #define MINESWEEPER_HARD_MINES 99
-#define MINESWEEPER_LIVES 3
+#define MINESWEEPER_LIVES 1
 
 class boardOptions {
 public:
@@ -69,7 +70,8 @@ private:
 	int vAdjMineCount;
 	int vRemAdjMines;
 	int vFreeAdjTiles;
-};
+}; // The possible values of cState are: "(E)mpty, (C)lear, (P)ressed, (F)lagged, (Q)uestioning."
+// Cleared means that it has already been chain pressed.
 
 class gameBoard: public boardOptions{
 public:
@@ -84,15 +86,14 @@ public:
 	void setBorder();
 	void unsetBoard();
 	void unsetTile(int r, int c);
-	void removeMineOnTile(int r, int c);
-	void setFlagOnTile(int r, int c);
-	void unsetFlagOnTile(int r, int c);
 	void setMines();
 	void printBoard(std::ostream& output);
 	void printCheat(std::ostream& output);
 	bool playBoard();
 	void doOnAllAdj(void (gameBoard::* fncptr)(int, int), int r, int c);
 	void doOnAllAdj(void (gameTile::*fncptr)(), int r, int c);
+	void setFlagOnTile(int r, int c);
+	void unsetFlagOnTile(int r, int c);
 	gameTile* operator()(int r, int c);
 
 private:
@@ -103,22 +104,30 @@ private:
 	int minesPressed;
 };
 
+struct solverTile{
+	gameTile* tile;
+	int r;
+	int c;
+};
+
 class gameSolver {
 public:
-	gameSolver(gameBoard& initBoard);
-	void solveTile(int r, int c);
+	gameSolver(gameBoard* initBoard);
+	void solveTile(solverTile& target);
 	void fillReset();
 	void resetRemainder();
 	void solveBoard();
-	void solverFlag(int r, int c);
-	void solverPress(int r, int c);
-	void fillSQueue(int r, int c);
-	void addAdjToSQueue(int r, int c);
+	void solverFlag(solverTile& target);
+	void solverPress(solverTile& target);
+	void fillSQueue();
+	void addAdjToSQueue(solverTile& target);
+	void removeMineOnTile(solverTile& target);
+	bool peekForAdjPressed(solverTile& target);
 
 private:
-	gameBoard& currBoard;
-	queue<gameTile*> solveQueue;
-	queue<gameTile*> resetQueue;
-	vector<gameTile*> possMineLocs;
+	gameBoard* currBoard;
+	queue<solverTile> solveQueue;
+	queue<solverTile> resetQueue;
+	vector<solverTile> possMineLocs;
 	int remMines;
 };

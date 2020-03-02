@@ -17,6 +17,7 @@ char gameTile::getState() {
 	case 'E': // Empty
 	case 'P': // Pressed
 	case 'Q': // Question-mark flag
+	case 'C': // Cleared
 		return cState;
 		break;
 	default:
@@ -57,6 +58,9 @@ void gameTile::removeMine() {
 void gameTile::setPressed() {
 	if (cState == 'E' || cState == 'Q') {
 		cState = 'P';
+	}
+	if (cState == 'P'){
+		cState = 'C';
 	}
 }
 
