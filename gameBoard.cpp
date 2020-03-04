@@ -44,6 +44,8 @@ gameBoard::gameBoard() {
 		exit(1);
 	}
 	gameSolver solve(this);
+	solve.solveBoard();
+	safeTilesLeft = height * width - getMines();
 }
 
 gameBoard::gameBoard(boardOptions& currSettings) {
@@ -74,8 +76,8 @@ gameBoard::gameBoard(boardOptions& currSettings) {
 		exit(1);
 	}
 	gameSolver solve(this);
-	solve.fillSQueue();
 	solve.solveBoard();
+	safeTilesLeft = height * width - getMines();
 }
 
 gameBoard::gameBoard(boardOptions& currSettings, int seed) {
@@ -116,17 +118,18 @@ gameBoard::gameBoard(boardOptions& currSettings, int seed) {
 			/* */
 		}
 		else {
-			std::cerr << ("Error has occured allocating memory for a board.\n");
+			std::cerr << ("Error has occurred allocating memory for a board.\n");
 			exit(1);
 		}
 	}
 	else {
-		std::cerr << ("Error has occured allocating memory for a board.\n");
+		std::cerr << ("Error has occurred allocating memory for a board.\n");
 		exit(1);
 	}
 	gameSolver solve(this);
-	solve.fillSQueue();
 	solve.solveBoard();
+	safeTilesLeft = height * width - getMines();
+	
 	/* The following lines is a cheat made for the purposes of debugging */
 	if (debugCheat.is_open()) {
 		debugCheat << "Post-Solver Board: \n";
@@ -162,12 +165,12 @@ gameBoard::gameBoard(gameBoard& repeatBoard){
 			setBorder();
 		}
 		else {
-			std::cerr << ("Error has occured allocating memory for a board.\n");
+			std::cerr << ("Error has occurred allocating memory for a board.\n");
 			exit(1);
 		}
 	}
 	else {
-		std::cerr << ("Error has occured allocating memory for a board.\n");
+		std::cerr << ("Error has occurred allocating memory for a board.\n");
 		exit(1);
 	}
 }
@@ -209,6 +212,25 @@ void gameBoard::pressTile(int r, int c) {
 	}
 }
 
+void gameBoard::pressTileWOChain(int r, int c) {
+	char state = matrixAccessor[r][c].getState();
+	void (gameBoard:: * fncPtr)(int, int);
+	fncPtr = &gameBoard::pressTile;
+	else if(state == 'P' || state == 'F' || state == 'C') {
+		return;
+	}
+	else {
+		matrixAccessor[r][c].setPressed();
+		if (matrixAccessor[r][c].isMine()) {
+			minesPressed++;
+		}
+		else {
+			safeTilesLeft--;
+		}
+		doOnAllAdj(&gameTile::decAdjTile, r, c);
+	}
+}
+
 void gameBoard::setBorder() {
 	int height = getHeight() + 1;
 	int width = getWidth() + 1;
@@ -237,10 +259,8 @@ void gameBoard::setMines() {
 	int width = getWidth();
 	int vUnsetMinesInt = getMines();
 	int vPotMineIndex = 0;
-	
 	int lAxis = max(height,width); // longer axis length
 	int sAxis = min(height,width); // shorter axis length
-	
 	int iH;
 	int iW;
 	

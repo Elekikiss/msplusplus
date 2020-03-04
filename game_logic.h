@@ -83,6 +83,7 @@ public:
 	~gameBoard();
 
 	void pressTile(int r, int c);
+	void pressTileWOChain(int r, int c); // This version of pressTile exists only for use with the gameSolver;
 	void setBorder();
 	void unsetBoard();
 	void unsetTile(int r, int c);
@@ -114,20 +115,13 @@ class gameSolver {
 public:
 	gameSolver(gameBoard* initBoard);
 	void solveTile(solverTile& target);
-	void fillReset();
-	void resetRemainder();
+	void recursiveAdjSolve(solverTile& target);
 	void solveBoard();
 	void solverFlag(solverTile& target);
-	void solverPress(solverTile& target);
-	void fillSQueue();
-	void addAdjToSQueue(solverTile& target);
+	void gameSolver::solverFlagAllAdj(solverTile& target);
 	void removeMineOnTile(solverTile& target);
 	bool peekForAdjPressed(solverTile& target);
 
 private:
 	gameBoard* currBoard;
-	queue<solverTile> solveQueue;
-	queue<solverTile> resetQueue;
-	vector<solverTile> possMineLocs;
-	int remMines;
 };
