@@ -53,6 +53,7 @@ public:
 	void setMine();
 	void removeMine();
 	void setPressed();
+	void setChained();
 	void setFlag();
 	void setQuestioning();
 	void unset();
@@ -85,6 +86,7 @@ public:
 	void pressTile(int r, int c);
 	void pressTileWOChain(int r, int c); // This version of pressTile exists only for use with the gameSolver;
 	void setBorder();
+	int getSafeTiles() {return safeTilesLeft;};
 	void unsetBoard();
 	void unsetTile(int r, int c);
 	void setMines();
@@ -114,11 +116,14 @@ struct solverTile{
 class gameSolver {
 public:
 	gameSolver(gameBoard* initBoard);
-	void solveTile(solverTile& target);
-	void recursiveAdjSolve(solverTile& target);
+	// void solveTile(solverTile& target);
+	// void recursiveAdjSolve(solverTile& target);
+	void solveTile(solverTile& target, ofstream& sbsSolution);
+	void recursiveAdjSolve(solverTile& target, ofstream& sbsSolution);
+	void resetRemainder();
 	void solveBoard();
 	void solverFlag(solverTile& target);
-	void gameSolver::solverFlagAllAdj(solverTile& target);
+	void solverFlagAllAdj(solverTile& target);
 	void removeMineOnTile(solverTile& target);
 	bool peekForAdjPressed(solverTile& target);
 

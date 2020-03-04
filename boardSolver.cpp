@@ -7,10 +7,14 @@ gameSolver::gameSolver(gameBoard* initBoard){
 void gameSolver::solveBoard() {
 	int height = currBoard->getHeight() + 1;
 	int width = currBoard->getWidth() + 1;
-	void (gameBoard:: * fncPtr)(int, int);
 	solverTile target;
-	do{
-		
+	
+	ofstream mineBoard;
+	mineBoard.open("solverBoard.txt");
+	
+	currBoard->printBoard(mineBoard);
+	
+	//do{
 		for (int i = 0; i <= height; i++) {
 			for (int j = 0; j <= width; j++) {
 				if ((*currBoard)(i, j)->getState() == 'E'){
@@ -18,17 +22,19 @@ void gameSolver::solveBoard() {
 					target.c = j;
 					target.tile = (*currBoard)(i, j);
 					if (peekForAdjPressed(target)){
-						std::cerr << "Starting Solver on tile:[" << i <<"][" << j << "].\n";
-						solveTile(target);
+						mineBoard << "Starting Solver on tile:[" << i <<"][" << j << "].\n";
+						solveTile(target, mineBoard);
+						mineBoard << "End of One Recursive Call Stack\n";
 					}
 				}
 			}
 		}
-		if (currBoard->safeTilesLeft()){
-			
-		}
-	//} while (currBoard->safeTilesLeft())
-	} while (false)
+	//	if (currBoard->getSafeTiles()){
+	//		resetRemainder();
+	//	}
+	//} while (currBoard->safeTilesLeft());
+	
+	mineBoard.close();
 }
 
 /* For the purposes of the solver, the indexes for the state goes like follows:
@@ -36,30 +42,29 @@ void gameSolver::solveBoard() {
 ** 3 4 5
 ** 6 7 8
 */
-void gameSolver::solveTile(solverTile& target) {
+//void gameSolver::solveTile(solverTile& target) {
+void gameSolver::solveTile(solverTile& target, ofstream& sbsSolution) {
 	int height = currBoard->getHeight() + 1;
 	int width = currBoard->getWidth() + 1;
 	int r = target.r;
 	int c = target.c;
-	char state[8] = {};
-	int vAdjFreeTile[8] = {};
-	int vRemainingMines[8] = {};
-	solverTile kTile[8];
-	int k = 0;
+	char state[9] = {};
+	int vAdjFreeTile[9] = {};
+	int vRemainingMines[9] = {};
+	solverTile kTile[9];
 	
-	if (target.tile->getState() == 'P' || target.tile->getFlag() == 'F' || target.tile->getState() == 'C'){
+	if (target.tile->getState() == 'P' || target.tile->getState() == 'F' || target.tile->getState() == 'C'){
 		return;
 	}
 	
-	ofstream mineBoard;
-	mineBoard.open("solverBoard.txt");
-	if (mineBoard.is_open()) {
-		printBoard(mineBoard);
-		mineBoard.close();
+
+	if (sbsSolution.is_open()) {
+		currBoard->printBoard(sbsSolution);
 	}
 	
+	int k = 0;
 	for (signed int i = -1; i <= 1; i++) {
-		for (signed int j = -1; j <= 1; j++) {
+		for (signed int j = -1; j <= 1; j++, k++) {
 			if (i == 0 && j == 0) {
 				vAdjFreeTile[k] = (*currBoard)(r + i, c + j)->getAdjTiles();
 				vRemainingMines[k] = (*currBoard)(r + i, c + j)->getRemMines();
@@ -70,6 +75,7 @@ void gameSolver::solveTile(solverTile& target) {
 				continue;
 			}
 			else if (r + i < 0 || r + i > height || c + j < 0 || c + j > width) {
+				kTile[k].tile = nullptr;
 				continue;
 			}
 			else{
@@ -80,19 +86,38 @@ void gameSolver::solveTile(solverTile& target) {
 				kTile[k].c = c + j;
 				kTile[k].tile = (*currBoard)(r + i, c + j);
 			}
-			k++;
 		}
 	}
 	
+	sbsSolution << "Solution Logics: Tile #0: state = " << state[0] << ", adjFree = " << vAdjFreeTile[0]
+			  << ", remMines = " << vRemainingMines[0] << "\n";
+	sbsSolution << "Solution Logics: Tile #1: state = " << state[1] << ", adjFree = " << vAdjFreeTile[1]
+			  << ", remMines = " << vRemainingMines[1] << "\n";
+	sbsSolution << "Solution Logics: Tile #2: state = " << state[2] << ", adjFree = " << vAdjFreeTile[2]
+			  << ", remMines = " << vRemainingMines[2] << "\n";
+	sbsSolution << "Solution Logics: Tile #3: state = " << state[3] << ", adjFree = " << vAdjFreeTile[3]
+			  << ", remMines = " << vRemainingMines[3] << "\n";
+	sbsSolution << "Solution Logics: Tile #4: state = " << state[4] << ", adjFree = " << vAdjFreeTile[4]
+			  << ", remMines = " << vRemainingMines[4] << "\n";
+	sbsSolution << "Solution Logics: Tile #6: state = " << state[6] << ", adjFree = " << vAdjFreeTile[6]
+			  << ", remMines = " << vRemainingMines[6] << "\n";
+	sbsSolution << "Solution Logics: Tile #7: state = " << state[7] << ", adjFree = " << vAdjFreeTile[7]
+			  << ", remMines = " << vRemainingMines[7] << "\n";
+	sbsSolution << "Solution Logics: Tile #8: state = " << state[8] << ", adjFree = " << vAdjFreeTile[8]
+			  << ", remMines = " << vRemainingMines[8] << "\n";
+	
 	/* Minesweeper Solution Logic Type Nearby Tile Cleared */
-	for (int k = 0; k < 9; k++){
+	for (k = 0; k < 9; k++){
 		if (k == 5) continue;
-		if (state[k] == 'P') { // Type No Remaining Mines
+		if ((state[k] == 'P' || state[k] == 'C') && kTile[k].tile != nullptr) { // 0.1 Type No Remaining Mines
 			if (vRemainingMines[k] == 0){
-				currBoard->doOnAllAdj(gameBoard::pressTileWOChain, kTile[k].r, kTile[k].c);
-				recursiveAdjSolve(kTile[k]);
+				currBoard->doOnAllAdj(&gameBoard::pressTileWOChain, kTile[k].r, kTile[k].c);
+				sbsSolution << "Pattern 1 encountered, [" << kTile[k].r << "][" << kTile[k].c << "]\n";
+				// recursiveAdjSolve(kTile[k]);
+				recursiveAdjSolve(kTile[k], sbsSolution);
 			}
-			else if (vRemainingMines[k] == vAdjFreeTile [k]){
+			else if (vRemainingMines[k] == vAdjFreeTile [k]){ // Type 0.2 Type Only Mines Remaining
+				sbsSolution << "Pattern 2 encountered, [" << kTile[k].r << "][" << kTile[k].c << "]\n";
 				solverFlagAllAdj(kTile[k]);
 				return;
 			}
@@ -121,7 +146,9 @@ void gameSolver::solveTile(solverTile& target) {
 /* This is a function that is designed to simplify the process of the recursive pressing; it simply does the job
 ** of recursively calling the solveTile function on all viable adjacent tiles to the tile passed as a reference.
 */
-void recursiveAdjSolve(solverTile& target){
+//void gameSolver::recursiveAdjSolve(solverTile& target){
+void gameSolver::recursiveAdjSolve(solverTile& target, ofstream& sbsSolution){
+	sbsSolution << "Recursive Caller called\n";
 	solverTile nextTarget;
 	int height = currBoard->getHeight() + 1;
 	int width = currBoard->getWidth() + 1;
@@ -145,11 +172,13 @@ void recursiveAdjSolve(solverTile& target){
 					nextTarget.r = r + i;
 					nextTarget.c = c + j;
 					nextTarget.tile = (*currBoard)(r + i, c + j);
-					solveTile(nextTarget);
+					//solveTile(nextTarget);
+					solveTile(nextTarget, sbsSolution);
 				}
 			}
 		}
 	}
+}
 
 void gameSolver::resetRemainder() {
 	int height = currBoard->getHeight();
@@ -186,7 +215,7 @@ void gameSolver::resetRemainder() {
 		target.r = possMineLocs[vPotMineIndex].r;
 		target.c = possMineLocs[vPotMineIndex].c;
 		target.tile = possMineLocs[vPotMineIndex].tile;
-		if (currTile->isMine() == 0) {
+		if (target.tile->isMine() == 0) {
 			target.tile->setMine();
 			currBoard->doOnAllAdj(&gameTile::incAdjMines, target.r, target.c);
 			minesRemoved--;

@@ -59,6 +59,9 @@ void gameTile::setPressed() {
 	if (cState == 'E' || cState == 'Q') {
 		cState = 'P';
 	}
+}
+
+void gameTile::setChained(){
 	if (cState == 'P'){
 		cState = 'C';
 	}

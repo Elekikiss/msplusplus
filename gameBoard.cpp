@@ -190,7 +190,7 @@ void gameBoard::pressTile(int r, int c) {
 			return;
 		}
 		else {
-			matrixAccessor[r][c].setPressed();
+			matrixAccessor[r][c].setChained();
 			doOnAllAdj(fncPtr, r, c);
 		}
 	}
@@ -199,13 +199,13 @@ void gameBoard::pressTile(int r, int c) {
 	}
 	else {
 		matrixAccessor[r][c].setPressed();
+		doOnAllAdj(&gameTile::decAdjTile, r, c);
 		if (matrixAccessor[r][c].isMine()) {
 			minesPressed++;
 		}
 		else {
 			safeTilesLeft--;
 		}
-		doOnAllAdj(&gameTile::decAdjTile, r, c);
 	}
 	if (blank) {
 		doOnAllAdj(fncPtr, r, c);
@@ -214,9 +214,7 @@ void gameBoard::pressTile(int r, int c) {
 
 void gameBoard::pressTileWOChain(int r, int c) {
 	char state = matrixAccessor[r][c].getState();
-	void (gameBoard:: * fncPtr)(int, int);
-	fncPtr = &gameBoard::pressTile;
-	else if(state == 'P' || state == 'F' || state == 'C') {
+	if(state == 'P' || state == 'F' || state == 'C') {
 		return;
 	}
 	else {
@@ -243,14 +241,18 @@ void gameBoard::setBorder() {
 			matrixAccessor[i][0].setAdjTile(5);
 			matrixAccessor[i][width].setAdjTile(5);
 		}
+	}
+	for (int j = 1; j < width; j++) {
+		matrixAccessor[0][j].setAdjTile(5);
+		matrixAccessor[height][j].setAdjTile(5);
+	}
+	for (int i = 0; i <= height; i++) {
 		pressTile(i, 0);
 		pressTile(i, width);
 	}
 	for (int j = 1; j < width; j++) {
 		pressTile(0, j);
 		pressTile(height, j);
-		matrixAccessor[0][j].setAdjTile(5);
-		matrixAccessor[height][j].setAdjTile(5);
 	}
 }
 
@@ -488,6 +490,7 @@ void gameBoard::setFlagOnTile(int r, int c) {
 	if (matrixAccessor[r][c].getState() == 'E') {
 		matrixAccessor[r][c].setFlag();
 		doOnAllAdj(&gameTile::decRem, r, c);
+		doOnAllAdj(&gameTile::decAdjTile, r, c);
 		return;
 	}
 }
@@ -496,6 +499,7 @@ void gameBoard::unsetFlagOnTile(int r, int c) {
 	if (matrixAccessor[r][c].getState() == 'F') {
 		matrixAccessor[r][c].unset();
 		doOnAllAdj(&gameTile::incRem, r, c);
+		doOnAllAdj(&gameTile::incAdjTile, r, c);
 		return;
 	}
 }
