@@ -43,8 +43,10 @@ gameBoard::gameBoard() {
 		std::cerr << ("Error has occured allocating memory for a board.\n");
 		exit(1);
 	}
-	gameSolver solve(this);
+	boardSolver solve(this);
 	solve.solveBoard();
+	unsetBoard();
+	setBorder();
 	safeTilesLeft = height * width - getMines();
 }
 
@@ -75,8 +77,10 @@ gameBoard::gameBoard(boardOptions& currSettings) {
 		std::cerr << ("Error has occured allocating memory for a board.\n");
 		exit(1);
 	}
-	gameSolver solve(this);
+	boardSolver solve(this);
 	solve.solveBoard();
+	unsetBoard();
+	setBorder();
 	safeTilesLeft = height * width - getMines();
 }
 
@@ -89,7 +93,6 @@ gameBoard::gameBoard(boardOptions& currSettings, int seed) {
 	int width = getWidth() + 2;
 	tileMatrix = new gameTile[height * width];
 	matrixAccessor = new gameTile * [height];
-	std::cerr << "Sucessfully allocated the tiles\n";
 	/* The following lines is a cheat made for the purposes of debugging */
 	ofstream debugCheat;
 	debugCheat.open("mineBoard.txt");
@@ -99,17 +102,14 @@ gameBoard::gameBoard(boardOptions& currSettings, int seed) {
 			for (int i = 0; i < height; i++) {
 				matrixAccessor[i] = &(tileMatrix[i * width]);
 			}
-			std::cerr << "Setting Mines \n";
 			setMines();	
-			std::cerr << "Set Mines\n";
 			safeTilesLeft = height * width - getMines();
-			std::cerr << "Setting Borders\n";
 			setBorder();
-			std::cerr << "Set Borders\n";
 			
 			/* The following lines is a cheat made for the purposes of debugging */
 			if (debugCheat.is_open()) {
 				debugCheat << "Pre-Solver Board: \n";
+				printBoard(debugCheat);
 				printCheat(debugCheat);
 			}
 			else {
@@ -126,13 +126,16 @@ gameBoard::gameBoard(boardOptions& currSettings, int seed) {
 		std::cerr << ("Error has occurred allocating memory for a board.\n");
 		exit(1);
 	}
-	gameSolver solve(this);
+	boardSolver solve(this);
 	solve.solveBoard();
+	unsetBoard();
+	setBorder();
 	safeTilesLeft = height * width - getMines();
 	
 	/* The following lines is a cheat made for the purposes of debugging */
 	if (debugCheat.is_open()) {
 		debugCheat << "Post-Solver Board: \n";
+		printBoard(debugCheat);
 		printCheat(debugCheat);
 		debugCheat.close();
 	}
@@ -183,15 +186,13 @@ gameBoard::~gameBoard() {
 void gameBoard::pressTile(int r, int c) {
 	char state = matrixAccessor[r][c].getState();
 	bool blank = !matrixAccessor[r][c].getAdjMines();
-	void (gameBoard:: * fncPtr)(int, int);
-	fncPtr = &gameBoard::pressTile;
 	if (state == 'P') {
 		if (matrixAccessor[r][c].getRemMines()) {
 			return;
 		}
 		else {
 			matrixAccessor[r][c].setChained();
-			doOnAllAdj(fncPtr, r, c);
+			doOnAllAdj(&gameBoard::pressTile, r, c);
 		}
 	}
 	else if(state == 'F' || state == 'C') {
@@ -208,7 +209,8 @@ void gameBoard::pressTile(int r, int c) {
 		}
 	}
 	if (blank) {
-		doOnAllAdj(fncPtr, r, c);
+		matrixAccessor[r][c].setChained();
+		doOnAllAdj(&gameBoard::pressTile, r, c);
 	}
 }
 
@@ -219,13 +221,13 @@ void gameBoard::pressTileWOChain(int r, int c) {
 	}
 	else {
 		matrixAccessor[r][c].setPressed();
+		doOnAllAdj(&gameTile::decAdjTile, r, c);
 		if (matrixAccessor[r][c].isMine()) {
 			minesPressed++;
 		}
 		else {
 			safeTilesLeft--;
 		}
-		doOnAllAdj(&gameTile::decAdjTile, r, c);
 	}
 }
 
@@ -289,8 +291,8 @@ void gameBoard::setMines() {
 void gameBoard::unsetBoard() {
 	int height = getHeight() + 1;
 	int width = getWidth() + 1;
-	for (int i = 1; i < height; i++) {
-		for (int j = 1; j < width; j++) {
+	for (int i = 0; i < height; i++) {
+		for (int j = 0; j < width; j++) {
 			unsetTile(i, j);
 		}
 	}
@@ -307,6 +309,7 @@ void gameBoard::unsetTile(int r, int c) {
 	case 'C':
 		matrixAccessor[r][c].unset();
 		doOnAllAdj(&gameTile::incAdjTile, r, c);
+		safeTilesLeft++;
 		break;
 	case 'Q':
 		matrixAccessor[r][c].unset();

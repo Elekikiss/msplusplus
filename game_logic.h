@@ -84,7 +84,7 @@ public:
 	~gameBoard();
 
 	void pressTile(int r, int c);
-	void pressTileWOChain(int r, int c); // This version of pressTile exists only for use with the gameSolver;
+	void pressTileWOChain(int r, int c); // This version of pressTile exists only for use with the boardSolver;
 	void setBorder();
 	int getSafeTiles() {return safeTilesLeft;};
 	void unsetBoard();
@@ -108,25 +108,51 @@ private:
 };
 
 struct solverTile{
+	int getAdjTiles(){return tile->getAdjTiles();};
+	int getRemMines(){return tile->getRemMines();};
+	char getState(){return tile->getState();};
+	
 	gameTile* tile;
 	int r;
 	int c;
 };
 
-class gameSolver {
+/* The goal of this class is to solve to a reasonable degree the minesweeper board, and replacing all 
+** undiscovered mines until the minesweeper board is no longer solvable by the algorithms that it is made
+** with. It is not meant to solve *all* boards that can be solved with logic, but only to eliminate boards
+** that cannot be solved with logic alone.
+*/
+
+/* Due to the poor readability of code each pattern of potential mine/safe-tile placement that one thinks of
+** will be implemented as a separate function, which is called in order of commonness by the solver function
+*/
+class boardSolver {
 public:
-	gameSolver(gameBoard* initBoard);
-	// void solveTile(solverTile& target);
-	// void recursiveAdjSolve(solverTile& target);
-	void solveTile(solverTile& target, ofstream& sbsSolution);
-	void recursiveAdjSolve(solverTile& target, ofstream& sbsSolution);
+	boardSolver(gameBoard* initBoard);
+	~boardSolver();
+	void solveTile(solverTile& target);
+	void solvePattern(solverTile& target);
+	void recursiveAdjSolve(solverTile& target);
 	void resetRemainder();
 	void solveBoard();
 	void solverFlag(solverTile& target);
+	void solverRSFlag(solverTile& target);
 	void solverFlagAllAdj(solverTile& target);
 	void removeMineOnTile(solverTile& target);
 	bool peekForAdjPressed(solverTile& target);
+	bool peekForAdjEmpty(solverTile& target);
+	void flagAdjExcShared(solverTile& target, solverTile& constraint);
+	void pressAdjExcShared(solverTile& target, solverTile& constraint);
+	
+	int countSharedFree(solverTile& tileA, solverTile& tileB);
+	
+	/* Solver Patterns */
+	bool testPattLargeAdjSmall(solverTile& target);
+	bool testPatt131Corner(solverTile& target);
 
 private:
 	gameBoard* currBoard;
+	bool bProgress;
+	solverTile** sMatrixAccessor;
+	solverTile* sTileMatrix;
 };
