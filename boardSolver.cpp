@@ -95,11 +95,9 @@ void boardSolver::solveTile(solverTile& target) {
 		/* Type 0.2 Type Only Mines Remaining */
 		std::cerr << "Solver logic: no more safe tiles\n";
 		solverFlagAllAdj(target);
-		bProgress = true;
 		return;
 	}
 	
-	std::cerr << "bProgress is still 0; 0 = " << bProgress << "\n";
 	std::cerr << "Exiting single tile Solver and calling pattern based solver.\n";
 	solvePattern(target);
 }
@@ -108,11 +106,9 @@ void boardSolver::solvePattern(solverTile& target){
 	/* Logic Type 0 End */
 	std::cerr << "Solver logic: Patterns begin\n";
 	if(testPattSharedAdjs(target) == true){
-		bProgress = true;
 		return;
 	}
 	if(testPatt131Corner(target) == true){
-		bProgress = true;
 		return;
 	}
 	std::cerr << "Solver logic: Patterns not found\n";
@@ -225,7 +221,11 @@ int boardSolver::resetRemainder() {
 void boardSolver::solverFlag(solverTile& target) {
 	int r = target.r;
 	int c = target.c;
-	currBoard->setFlagOnTile(r, c);
+	char state = state = target.tile->getState();
+	if (state == 'E){
+		currBoard->setFlagOnTile(r, c);
+		bProgress = true;
+	}
 }
 
 
@@ -394,7 +394,10 @@ void boardSolver::pressAdjExcShared(solverTile& focus, solverTile& constraint){
 			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c - 1)))
 			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c + 0)))
 			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c + 1)))) continue;
-			currBoard->pressTileWOChain(r + i, c + j);
+			if (currBoard(r + i, c + j)->getState == 'E'){
+				currBoard->pressTileWOChain(r + i, c + j);
+				bProgress = true;
+			}
 		}
 	}
 }
@@ -464,7 +467,7 @@ bool boardSolver::testPattSharedAdjs(solverTile& targetA){
 				minesB = targetB.getRemMines();
 				adjForB = targetB.getRemMines();
 				
-				/*
+				
 				if (minesA == minesB){
 					if (adjForA == sharedAdj){
 						pressAdjExcShared(targetB, targetA);
@@ -475,7 +478,7 @@ bool boardSolver::testPattSharedAdjs(solverTile& targetA){
 						returnVal = true;
 					}
 				}
-				*/
+				
 				/*
 				else if (minesA < minesB){
 					if (minesB - (adjForB - sharedAdj) ==  minesA){
