@@ -1,20 +1,17 @@
 #include "game_logic.h"
 
-/* This next block of code are the various constructors and the destructor for the
-** gameBoard class. the gameBoard is a class that is made of a 2D matrix of tiles which is
-** dynamically generated based off of the dimensions set in boardOptions. It will use a
-** random generator to place the mines, the # of mines not placed on the map yet is reduced
-** to 0. The seed value, which will usually be obtained from time will be stored inside
-** a variable, seedVal. It will be possible for the user, to prompt to start a game with
-** a given seed as well.
-** During the construction, height and width will always be given a value +2 of
-** what is given by the getter functions to the boardOptions. This is to account for the
-** size of the 'free border' that is provided to the players.
-** Similarly, whenever a different function needs to know the height and width of the board,
-** height and width will be given a value +1 of what is given by the getter
-** functions, to account for the presence of the 0th index being the border.
-** The only exception to this will be the SetMine function, as the border is meant to be
-** completely mine-free.
+// Ctor & Dtor
+/* This next block of code are the various constructors and the destructor for the gameBoard class. the gameBoard 
+** is a class that is made of a 2D matrix of tiles which is dynamically generated based off of the dimensions set in
+** boardOptions. It will use a random generator to place the mines, the # of mines not placed on the map yet is reduced
+** to 0. The seed value, which will usually be obtained from time will be stored inside a variable, seedVal. It will 
+** be possible for the user, to prompt to start a game with a given seed as well.
+
+** Of Note: during the construction, height and width will always be given a value +2 of what is given by the getter
+** functions to the boardOptions. This is to account for the size of the 'free border' that is provided to the players.
+** Similarly, whenever a different function needs to know the height and width of the board, height and width will be 
+** given a value +1 of what is given by the getter functions, to account for the presence of the 0th index being the
+** border. The only exception to this will be the SetMine function, as the border is meant to be completely mine-free.
 */
 
 gameBoard::gameBoard() {
@@ -50,6 +47,8 @@ gameBoard::gameBoard() {
 	safeTilesLeft = height * width - getMines();
 }
 
+
+
 gameBoard::gameBoard(boardOptions& currSettings) {
 	setOpt(currSettings.getWidth(), currSettings.getHeight(), currSettings.getMines());
 	seedVal = time(NULL);
@@ -83,6 +82,8 @@ gameBoard::gameBoard(boardOptions& currSettings) {
 	setBorder();
 	safeTilesLeft = height * width - getMines();
 }
+
+
 
 gameBoard::gameBoard(boardOptions& currSettings, int seed) {
 	setOpt(currSettings.getWidth(), currSettings.getHeight(), currSettings.getMines());
@@ -146,6 +147,7 @@ gameBoard::gameBoard(boardOptions& currSettings, int seed) {
 }
 
 
+
 gameBoard::gameBoard(gameBoard& repeatBoard){
 	setOpt(repeatBoard.getWidth(), repeatBoard.getHeight(), repeatBoard.getMines());
 	seedVal = repeatBoard.seedVal;
@@ -178,59 +180,20 @@ gameBoard::gameBoard(gameBoard& repeatBoard){
 	}
 }
 
+
+
 gameBoard::~gameBoard() {
 	delete tileMatrix;
 	delete matrixAccessor;
 }
 
-void gameBoard::pressTile(int r, int c) {
-	char state = matrixAccessor[r][c].getState();
-	bool blank = !matrixAccessor[r][c].getAdjMines();
-	if (state == 'P') {
-		if (matrixAccessor[r][c].getRemMines()) {
-			return;
-		}
-		else {
-			matrixAccessor[r][c].setCleared();
-			doOnAllAdj(&gameBoard::pressTile, r, c);
-		}
-	}
-	else if(state == 'F' || state == 'C') {
-		return;
-	}
-	else {
-		matrixAccessor[r][c].setPressed();
-		doOnAllAdj(&gameTile::decAdjTile, r, c);
-		if (matrixAccessor[r][c].isMine()) {
-			minesPressed++;
-		}
-		else {
-			safeTilesLeft--;
-		}
-	}
-	if (blank) {
-		matrixAccessor[r][c].setCleared();
-		doOnAllAdj(&gameBoard::pressTile, r, c);
-	}
-}
 
-void gameBoard::pressTileWOChain(int r, int c) {
-	char state = matrixAccessor[r][c].getState();
-	if(state == 'P' || state == 'F' || state == 'C') {
-		return;
-	}
-	else {
-		matrixAccessor[r][c].setPressed();
-		doOnAllAdj(&gameTile::decAdjTile, r, c);
-		if (matrixAccessor[r][c].isMine()) {
-			printBoard(std::cerr);
-			exit(1);
-		}
-		else {
-			safeTilesLeft--;
-		}
-	}
-}
+
+// End of Ctor(s) and Dtor ============================================================================================
+
+
+
+// Board Initializers
 
 void gameBoard::setBorder() {
 	int height = getHeight() + 1;
@@ -258,6 +221,8 @@ void gameBoard::setBorder() {
 		pressTile(height, j);
 	}
 }
+
+
 
 void gameBoard::setMines() {
 	int height = getHeight();
@@ -289,6 +254,99 @@ void gameBoard::setMines() {
 	}
 }
 
+
+
+
+
+// End of Initializers ================================================================================================
+
+
+
+// Gameplay Functions
+
+void gameBoard::pressTile(int r, int c) {
+	char state = matrixAccessor[r][c].getState();
+	bool blank = !matrixAccessor[r][c].getAdjMines();
+	if (state == 'P') {
+		if (matrixAccessor[r][c].getRemMines()) {
+			return;
+		}
+		else {
+			matrixAccessor[r][c].setCleared();
+			doOnAllAdj(&gameBoard::pressTile, r, c);
+		}
+	}
+	else if(state == 'F' || state == 'C') {
+		return;
+	}
+	else {
+		matrixAccessor[r][c].setPressed();
+		doOnAllAdj(&gameTile::decAdjTile, r, c);
+		if (matrixAccessor[r][c].isMine()) {
+			minesPressed++;
+		}
+		else {
+			safeTilesLeft--;
+		}
+		if (blank) {
+			matrixAccessor[r][c].setCleared();
+			doOnAllAdj(&gameBoard::pressTile, r, c);
+		}
+	}
+	
+}
+
+
+
+void gameBoard::setFlagOnTile(int r, int c) {
+	if (matrixAccessor[r][c].getState() == 'E') {
+		matrixAccessor[r][c].setFlag();
+		doOnAllAdj(&gameTile::decRem, r, c);
+		doOnAllAdj(&gameTile::decAdjTile, r, c);
+		return;
+	}
+}
+
+
+
+void gameBoard::unsetFlagOnTile(int r, int c) {
+	if (matrixAccessor[r][c].getState() == 'F') {
+		matrixAccessor[r][c].unset();
+		doOnAllAdj(&gameTile::incRem, r, c);
+		doOnAllAdj(&gameTile::incAdjTile, r, c);
+		return;
+	}
+}
+
+
+
+// End of Gameplay Functions ==========================================================================================
+
+
+
+// Solver Auxillaries
+
+void gameBoard::pressTileWOChain(int r, int c) {
+	char state = matrixAccessor[r][c].getState();
+	if(state == 'P' || state == 'F' || state == 'C') {
+		return;
+	}
+	else {
+		matrixAccessor[r][c].setPressed();
+		doOnAllAdj(&gameTile::decAdjTile, r, c);
+		if (matrixAccessor[r][c].isMine()) {
+			printBoard(std::cerr);
+			std::cerr << "Solver pressed a Mine; this behaviour is considered a critical bug\n";
+			exit(1);
+		}
+		else {
+			safeTilesLeft--;
+		}
+	}
+}
+
+
+
 void gameBoard::unsetBoard() {
 	int height = getHeight() + 1;
 	int width = getWidth() + 1;
@@ -299,11 +357,14 @@ void gameBoard::unsetBoard() {
 	}
 }
 
+
+
 void gameBoard::unsetTile(int r, int c) {
 	char state = matrixAccessor[r][c].getState();
 	switch (state) {
 	case 'F':
 		matrixAccessor[r][c].unset();
+		doOnAllAdj(&gameTile::incAdjTile, r, c);
 		doOnAllAdj(&gameTile::incRem, r, c);
 		break;
 	case 'P':
@@ -320,6 +381,66 @@ void gameBoard::unsetTile(int r, int c) {
 	}
 	
 }
+
+
+
+gameTile* gameBoard::operator()(int r, int c) {
+	return &(matrixAccessor[r][c]);
+}
+
+
+
+// End of Solver Auxillaries ==========================================================================================
+
+
+
+// Adjacent Tile Function Caller
+
+void gameBoard::doOnAllAdj(void (gameBoard::*fncptr)(int, int), int r, int c) {
+	int height = getHeight() + 1;
+	int width = getWidth() + 1;
+	for (signed int i = -1; i <= 1; i++) {
+		for (signed int j = -1; j <= 1; j++) {
+			if (i == 0 && j == 0) {
+				continue;
+			}
+			if (r + i < 0 || r + i > height || c + j < 0 || c + j > width) {
+				continue;
+			}
+			else {
+				(this->*fncptr)(r + i, c + j);
+			}
+		}
+	}
+}
+
+
+
+void gameBoard::doOnAllAdj(void (gameTile::* fncptr)(), int r, int c) {
+	int height = getHeight() + 1;
+	int width = getWidth() + 1;
+	for (signed int i = -1; i <= 1; i++) {
+		for (signed int j = -1; j <= 1; j++) {
+			if (i == 0 && j == 0) {
+				continue;
+			}
+			if (r + i < 0 || r + i > height || c + j < 0 || c + j > width) {
+				continue;
+			}
+			else {
+				(matrixAccessor[r + i][c + j].*fncptr)();
+			}
+		}
+	}
+}
+
+
+
+// End of Adjacent Tile Function Caller ===============================================================================
+
+
+
+// Debug Helpers
 
 void gameBoard::printBoard(std::ostream& output) {
 	int height = getHeight() + 1;
@@ -363,6 +484,8 @@ void gameBoard::printBoard(std::ostream& output) {
 	output << "\n\n";
 }
 
+
+
 void gameBoard::printCheat(std::ostream& output) {
 	int height = getHeight() + 1;
 	int width = getWidth() + 1;
@@ -392,6 +515,11 @@ void gameBoard::printCheat(std::ostream& output) {
 	}
 	output << "\n\n";
 }
+
+
+
+// When a GUI is developed, a new version of this function would be made that takes input from the GUI;
+// until then, this debugger is the only way to play the board
 
 bool gameBoard::playBoard() {
 	int height = getHeight() + 1;
@@ -490,60 +618,7 @@ bool gameBoard::playBoard() {
 }
 
 
-void gameBoard::setFlagOnTile(int r, int c) {
-	if (matrixAccessor[r][c].getState() == 'E') {
-		matrixAccessor[r][c].setFlag();
-		doOnAllAdj(&gameTile::decRem, r, c);
-		doOnAllAdj(&gameTile::decAdjTile, r, c);
-		return;
-	}
-}
 
-void gameBoard::unsetFlagOnTile(int r, int c) {
-	if (matrixAccessor[r][c].getState() == 'F') {
-		matrixAccessor[r][c].unset();
-		doOnAllAdj(&gameTile::incRem, r, c);
-		doOnAllAdj(&gameTile::incAdjTile, r, c);
-		return;
-	}
-}
+// End of Debug Helpers ===============================================================================================
 
-gameTile* gameBoard::operator()(int r, int c) {
-	return &(matrixAccessor[r][c]);
-}
 
-void gameBoard::doOnAllAdj(void (gameBoard::*fncptr)(int, int), int r, int c) {
-	int height = getHeight() + 1;
-	int width = getWidth() + 1;
-	for (signed int i = -1; i <= 1; i++) {
-		for (signed int j = -1; j <= 1; j++) {
-			if (i == 0 && j == 0) {
-				continue;
-			}
-			if (r + i < 0 || r + i > height || c + j < 0 || c + j > width) {
-				continue;
-			}
-			else {
-				(this->*fncptr)(r + i, c + j);
-			}
-		}
-	}
-}
-
-void gameBoard::doOnAllAdj(void (gameTile::* fncptr)(), int r, int c) {
-	int height = getHeight() + 1;
-	int width = getWidth() + 1;
-	for (signed int i = -1; i <= 1; i++) {
-		for (signed int j = -1; j <= 1; j++) {
-			if (i == 0 && j == 0) {
-				continue;
-			}
-			if (r + i < 0 || r + i > height || c + j < 0 || c + j > width) {
-				continue;
-			}
-			else {
-				(matrixAccessor[r + i][c + j].*fncptr)();
-			}
-		}
-	}
-}

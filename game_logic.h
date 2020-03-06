@@ -43,14 +43,20 @@ private:
 	int mines;
 };
 
+
+
 class gameTile {
 public:
 	gameTile();
+	
+	// Getters
 	bool isMine();
 	char getState();
 	int getAdjMines();
 	int getRemMines();
 	int getAdjTiles();
+	
+	// Setters
 	void setMine();
 	void removeMine();
 	void setPressed();
@@ -63,9 +69,9 @@ public:
 	void decAdjMines();
 	void incRem();
 	void decRem();
+	void setAdjTile(int num);
 	void incAdjTile();
 	void decAdjTile();
-	void setAdjTile(int num);
 
 private:
 	bool bMine;
@@ -73,8 +79,11 @@ private:
 	int vAdjMineCount;
 	int vRemAdjMines;
 	int vFreeAdjTiles;
-}; // The possible values of cState are: "(E)mpty, (C)lear, (P)ressed, (F)lagged, (Q)uestioning."
-// Cleared means that it has already been chain pressed.
+	// The possible values of cState are: "(E)mpty, (C)leared, (P)ressed, (F)lagged, (Q)uestioning."
+	// Cleared means that it has already been chain pressed/"Chorded"
+};
+
+
 
 class gameBoard: public boardOptions{
 public:
@@ -84,22 +93,35 @@ public:
 	gameBoard(boardOptions& currSettings, int seed);
 	gameBoard(gameBoard& repeatBoard);
 	~gameBoard();
-
-	void pressTile(int r, int c);
-	void pressTileWOChain(int r, int c); // This version of pressTile exists only for use with the boardSolver;
+	
+	// Board Initializers
 	void setBorder();
-	int getSafeTiles() {return safeTilesLeft;};
+	void setMines();
+	
+	// Gameplay Functions
+	void pressTile(int r, int c);
+	void setFlagOnTile(int r, int c);
+	void unsetFlagOnTile(int r, int c);
+	
+	// Solver Auxillaries
+	void pressTileWOChain(int r, int c);
 	void unsetBoard();
 	void unsetTile(int r, int c);
-	void setMines();
+	gameTile* operator()(int r, int c);
+	
+	// Adjacent Tile Function Caller
+	void doOnAllAdj(void (gameBoard::* fncptr)(int, int), int r, int c);
+	void doOnAllAdj(void (gameTile::*fncptr)(), int r, int c);
+	
+	// Debug Helpers
 	void printBoard(std::ostream& output);
 	void printCheat(std::ostream& output);
 	bool playBoard();
-	void doOnAllAdj(void (gameBoard::* fncptr)(int, int), int r, int c);
-	void doOnAllAdj(void (gameTile::*fncptr)(), int r, int c);
-	void setFlagOnTile(int r, int c);
-	void unsetFlagOnTile(int r, int c);
-	gameTile* operator()(int r, int c);
+	
+	// Getters
+	int getLivesUsed() {return minesPressed;};
+	int getSeedVal() {return seedVal;};
+	int getSafeTiles() {return safeTilesLeft;};
 
 private:
 	gameTile* tileMatrix;
@@ -108,6 +130,8 @@ private:
 	int seedVal;
 	int minesPressed;
 };
+
+
 
 struct solverTile{
 	int getAdjTiles(){return tile->getAdjTiles();};
@@ -130,28 +154,46 @@ struct solverTile{
 */
 class boardSolver {
 public:
+	// ctor & dtor
 	boardSolver(gameBoard* initBoard);
 	~boardSolver();
+	
+	// Driver Functions
+	void solveBoard();
 	void solveTile(solverTile& target);
 	void solvePattern(solverTile& target);
+	
+	// Recursive Callers
 	void recursiveAdjSolve(solverTile& target);
-	int resetRemainder();
-	void solveBoard();
-	void solverFlag(solverTile& target);
-	void solverRSFlag(solverTile& target);
+	void solverPressAllAdj(solverTile& target);
 	void solverFlagAllAdj(solverTile& target);
-	void removeMineOnTile(solverTile& target);
-	bool peekForAdjPressed(solverTile& target);
-	bool peekForAdjEmpty(solverTile& target);
-	bool peekForAdjAllMines(solverTile& target);
+	void solverRSFlag(solverTile& target);
+	void solverRSPress(solverTile& target);
+	
+	// Non-recursive progressors.
+	void solverFlag(solverTile& target);
+	void solverPress(solverTile& target);
 	void flagAdjExcShared(solverTile& target, solverTile& constraint);
 	void pressAdjExcShared(solverTile& target, solverTile& constraint);
 	
+	// Resetters
+	int resetRemainder();
+	void removeMineOnTile(solverTile& target);
+	int removeMine3x3(solverTile& target);
+	
+	// Adjacent Tile Peekers
+	bool peekForAdjPressed(solverTile& target);
+	bool peekForAdjEmpty(solverTile& target);
+	bool peekForAdjAllMines(solverTile& target);
 	int countSharedFree(solverTile& tileA, solverTile& tileB);
 	
-	/* Solver Patterns */
+	// Solver Patterns
 	bool testPattSharedAdjs(solverTile& target);
 	bool testPatt131Corner(solverTile& target);
+	bool testPatt121Island(solverTile& target);
+	
+	// Debug Helpers
+	void solverPrint(std::ostream& output);
 
 private:
 	gameBoard* currBoard;

@@ -11,12 +11,9 @@ int main() {
 	ifstream initOptions;
 	ofstream userOptions;
 	boardOptions* currBoardOps;
-//	char userChoice;
-
-	std::cout << "Debug Statement: opening settings file.\n";
+	char userChoice;
 	initOptions.open("minesweeper.bin", ios::binary);
 	if (initOptions.is_open()) {
-		std::cout << "Debug Statement: opened settings file.\n";
 		currBoardOps = new boardOptions;
 		int w;
 		int h;
@@ -27,13 +24,11 @@ int main() {
 		currBoardOps->setOpt(w, h, m);
 		// Add initialization of Statistics data later, if time permits
 		initOptions.close();
-		std::cout << "Debug Statement: read and closed settings file.\n";
 	}
 	else {
-		std::cout << "Debug Statement: settings not found\n";
 		currBoardOps = new boardOptions;
 	}
-	/*
+	
 	while (true) {
 		std::cout << "Change settings? (Y/N)\n";
 		std::cin >> userChoice;
@@ -91,10 +86,10 @@ int main() {
 			}
 		}
 	}
-	*/
-	///int seed = time(NULL);
-	int seed = 1583319765;
-	std::cerr << "seed = " << seed << "\n";
+	
+	int seed = time(NULL);
+	// int seed = 1583319765;
+	std::cout << "seed = " << seed << "\n";
 
 	gameBoard* currBoard;
 	currBoard = new gameBoard(*currBoardOps, seed);

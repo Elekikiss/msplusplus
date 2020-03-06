@@ -1,5 +1,7 @@
 #include "game_logic.h"
 
+// Ctor(s) and Dtor
+
 boardSolver::boardSolver(gameBoard* initBoard){
 	currBoard = initBoard;
 	
@@ -29,18 +31,35 @@ boardSolver::boardSolver(gameBoard* initBoard){
 			sMatrixAccessor[i][j].tile = (*currBoard)(i, j);
 		}
 	}
-}
+}	// End of Ctor
+
+
 
 boardSolver::~boardSolver(){
 	delete sMatrixAccessor;
 	delete sTileMatrix;
-}
+}	// End of Dtor
+
+
+
+// End of Ctors and Dtors =============================================================================================
+
+
+
+// Driver Functions
 
 void boardSolver::solveBoard() {
 	int height = currBoard->getHeight() + 1;
 	int width = currBoard->getWidth() + 1;
 	solverTile target;
 	bProgress = false;
+	
+	ofstream demoText;
+	demoText.open("demoBoardSolving.txt");
+	if (demoText.is_open()){
+		demoText << "Board seed = " << currBoard->getSeedVal() << endl;
+		currBoard->printBoard(demoText);
+	}
 	
 	while(true){
 		do{
@@ -53,71 +72,72 @@ void boardSolver::solveBoard() {
 						target.tile = (*currBoard)(i, j);
 						if (peekForAdjEmpty(target)){
 							solveTile(target);
+							if(demoText.is_open()) currBoard->printBoard(demoText);
 						}
 					}
 				}
 			}
-			std::cerr << "bProgress = " << bProgress << "\n\n";
-			currBoard->printBoard(std::cerr);
 		}while (bProgress == true);
 		
 		if (resetRemainder() == 0){
 			break;
 		}
 	}
+	
+	if(demoText.is_open()) demoText.close();
 }
 
 
+
 void boardSolver::solveTile(solverTile& target) {
-	int r = target.r;
-	int c = target.c;
-	
+	char state = target.getState();
 	/* Solver Logic Begins */
-	std::cerr << "Solver logic: single tile begin\n";
-	if (target.getState() == 'E' || target.getState() == 'F'){
+	if (state == 'E' || state == 'F' || state == 'C'){
 		return;
 	}
 	if (target.getAdjTiles() == 0) {
-		std::cerr << "Tile Fully solved\n";
 		target.tile->setCleared();
 		return;
 	}
 	/* Minesweeper Solution Logic Type 0: Nearby Tile Cleared */
 	if (target.getRemMines() == 0){
 		/* 0.1 Type No Remaining Mines */
-		std::cerr << "Solver logic: no more mines\n";
-		currBoard->doOnAllAdj(&gameBoard::pressTileWOChain, r, c);
-		recursiveAdjSolve(target);
-		bProgress = true;
+		solverPressAllAdj(target);
 		return;
 	}
 	else if (target.getRemMines() == target.getAdjTiles()){
 		/* Type 0.2 Type Only Mines Remaining */
-		std::cerr << "Solver logic: no more safe tiles\n";
 		solverFlagAllAdj(target);
 		return;
 	}
 	
-	std::cerr << "Exiting single tile Solver and calling pattern based solver.\n";
 	solvePattern(target);
 }
 
+
+
 void boardSolver::solvePattern(solverTile& target){
 	/* Logic Type 0 End */
-	std::cerr << "Solver logic: Patterns begin\n";
 	if(testPattSharedAdjs(target) == true){
 		return;
 	}
 	if(testPatt131Corner(target) == true){
 		return;
 	}
-	std::cerr << "Solver logic: Patterns not found\n";
+	
+	if(testPatt121Island(target) == true){
+		return;
+	}
 }
 
 
-/* This is a function that is designed to simplify the process of the recursive pressing; it simply does the job
-** of recursively calling the solveTile function on all viable adjacent tiles to the tile passed as a reference.
-*/
+
+// End of Driver Functions ============================================================================================
+
+
+
+// Recursion Helpers
+
 void boardSolver::recursiveAdjSolve(solverTile& target){
 	solverTile nextTarget;
 	int height = currBoard->getHeight() + 1;
@@ -130,7 +150,7 @@ void boardSolver::recursiveAdjSolve(solverTile& target){
 			if (i == 0 && j == 0) {
 				continue;
 			}
-			else if (r + i < 0 || r + i > height || c + j < 0 || c + j > width) {
+			else if (((r + i) > height) || ((r + i) < 0) || ((c + j) > width) || ((c + j) < 0)) {
 				continue;
 			}
 			else{
@@ -149,6 +169,189 @@ void boardSolver::recursiveAdjSolve(solverTile& target){
 	}
 }
 
+
+
+void boardSolver::solverFlagAllAdj(solverTile& target) {
+	int height = currBoard->getHeight() + 1;
+	int width = currBoard->getWidth() + 1;
+	int r = target.r;
+	int c = target.c;
+	char state;
+	solverTile flagTarget;
+	for (signed int i = -1; i <= 1; i++) {
+		for (signed int j = -1; j <= 1; j++) {
+			if (i == 0 && j == 0) {
+				continue;
+			}
+			else if (((r + i) > height) || ((r + i) < 0) || ((c + j) > width) || ((c + j) < 0)) {
+				continue;
+			}
+			else{
+				state = sMatrixAccessor[r + i][c + j].getState();
+				if (state == 'E'){
+					flagTarget.r = r + i;
+					flagTarget.c = c + j;
+					flagTarget.tile = sMatrixAccessor[r + i][c + j].tile;
+					solverRSFlag(flagTarget);
+				}
+			}
+		}
+	}
+}
+
+
+
+void boardSolver::solverPressAllAdj(solverTile& target) {
+	int height = currBoard->getHeight() + 1;
+	int width = currBoard->getWidth() + 1;
+	int r = target.r;
+	int c = target.c;
+	char state;
+	solverTile pressTarget;
+	queue<solverTile> recursionQueue;
+	for (signed int i = -1; i <= 1; i++) {
+		for (signed int j = -1; j <= 1; j++) {
+			if (i == 0 && j == 0) {
+				continue;
+			}
+			else if (((r + i) > height) || ((r + i) < 0) || ((c + j) > width) || ((c + j) < 0)) {
+				continue;
+			}
+			else{
+				state = sMatrixAccessor[r + i][c + j].getState();
+				if (state == 'E'){
+					pressTarget.r = r + i;
+					pressTarget.c = c + j;
+					pressTarget.tile = sMatrixAccessor[r + i][c + j].tile;
+					solverPress(pressTarget);
+					recursionQueue.push(pressTarget);
+				}
+			}
+		}
+	}
+	while(!(recursionQueue.empty())){
+		pressTarget = recursionQueue.front();
+		solveTile(pressTarget);
+		recursionQueue.pop();
+	}
+}
+
+
+
+void boardSolver::solverRSFlag(solverTile& target) {
+	solverFlag(target);
+	recursiveAdjSolve(target);
+}
+
+
+
+void boardSolver::solverRSPress(solverTile& target) {
+	solverPress(target);
+	solveTile(target);
+}
+
+
+// End of Recursive Helpers ===========================================================================================
+
+
+
+// Progressors (Non-Recursive)
+
+// The following two functions are progressors that modifies the board progress and ticks the boolean condition.
+// They are used mostly as a component to the RecursiveSolver (RS) version above.
+
+void boardSolver::solverFlag(solverTile& target) {
+	int r = target.r;
+	int c = target.c;
+	char state = target.tile->getState();
+	if (state == 'E'){
+		currBoard->setFlagOnTile(r, c);
+		bProgress = true;
+	}
+}
+
+
+
+void boardSolver::solverPress(solverTile& target){
+	if (target.getState() == 'E'){
+		currBoard->pressTile(target.r, target.c);
+		bProgress = true;
+	}
+}
+
+
+
+// These following two functions are also progressors, that imitate the logic of the "AllAdj" versions of
+// the progressors above, but only for tiles that is not adjacent to a second tile, called the constraint.
+// These functions are only called by the pattern solver algorithms; hence, they intentionally use non-recursive
+// call makers to avoid runaway recursion caused by the pattern solvers, as pattern-based progression usually does not
+// fully solve a tile.
+
+void boardSolver::flagAdjExcShared(solverTile& focus, solverTile& constraint){
+	int height = currBoard->getHeight() + 1;
+	int width = currBoard->getWidth() + 1;
+	int r = focus.r;
+	int c = focus.c;
+	solverTile target;
+	for(signed int i = -1; i < 2; i++){
+		for(signed int j = -1; j < 2; j++){
+			if (((r + i) > height) || ((r + i) < 0) || ((c + j) > width) || ((c + j) < 0)) continue;
+			if (i == 0 && j == 0) continue;
+			if(((((r + i) == (constraint.r - 1)) && ((c + j)) == (constraint.c - 1)))
+			|| ((((r + i) == (constraint.r - 1)) && ((c + j)) == (constraint.c + 0)))
+			|| ((((r + i) == (constraint.r - 1)) && ((c + j)) == (constraint.c + 1)))
+			|| ((((r + i) == (constraint.r + 0)) && ((c + j)) == (constraint.c - 1)))
+			|| ((((r + i) == (constraint.r + 0)) && ((c + j)) == (constraint.c + 0)))
+			|| ((((r + i) == (constraint.r + 0)) && ((c + j)) == (constraint.c + 1)))
+			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c - 1)))
+			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c + 0)))
+			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c + 1)))) continue;
+			target.r = r + i;
+			target.c = c + j;
+			target.tile = sMatrixAccessor[r + i][c + j].tile;
+			solverFlag(target);
+		}
+	}
+}
+
+void boardSolver::pressAdjExcShared(solverTile& focus, solverTile& constraint){
+	int height = currBoard->getHeight() + 1;
+	int width = currBoard->getWidth() + 1;
+	int r = focus.r;
+	int c = focus.c;
+	solverTile target;
+	for(signed int i = -1; i < 2; i++){
+		for(signed int j = -1; j < 2; j++){
+			if (((r + i) > height) || ((r + i) < 0) || ((c + j) > width) || ((c + j) < 0)) continue;
+			if (i == 0 && j == 0) continue;
+			if(((((r + i) == (constraint.r - 1)) && ((c + j)) == (constraint.c - 1)))
+			|| ((((r + i) == (constraint.r - 1)) && ((c + j)) == (constraint.c + 0)))
+			|| ((((r + i) == (constraint.r - 1)) && ((c + j)) == (constraint.c + 1)))
+			|| ((((r + i) == (constraint.r + 0)) && ((c + j)) == (constraint.c - 1)))
+			|| ((((r + i) == (constraint.r + 0)) && ((c + j)) == (constraint.c + 0)))
+			|| ((((r + i) == (constraint.r + 0)) && ((c + j)) == (constraint.c + 1)))
+			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c - 1)))
+			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c + 0)))
+			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c + 1)))) continue;
+			target.r = r + i;
+			target.c = c + j;
+			target.tile = sMatrixAccessor[r + i][c + j].tile;
+			solverPress(target);
+		}
+	}
+}
+
+
+
+// End of Progressors =================================================================================================
+
+
+
+// Resetters
+
+// The following function holds (most) of the logic required to fix a board that cannot be solved.
+// Some of the helper functions within the class may be necessary for this function, hence the "(most)"
+
 int boardSolver::resetRemainder() {
 	int height = currBoard->getHeight();
 	int width = currBoard->getWidth();
@@ -159,7 +362,6 @@ int boardSolver::resetRemainder() {
 	int vPotMineIndex = 0;
 	char state;
 	
-	std::cerr << "Board not solvable, at least with current pattern recognitions. Relocating mines...\n";
 	vector<solverTile> possMineLocs;
 	
 	for (int i = 1; i <= height; i++) {
@@ -172,10 +374,12 @@ int boardSolver::resetRemainder() {
 				maxMineIndex++;
 				if ((*currBoard)(i, j)->isMine()){
 					if(!(peekForAdjAllMines(target))){
-						std::cerr << "Removing Mine\n";
 						removeMineOnTile(target);
 						minesRemoved++;
 					}
+				}
+				else if (peekForAdjAllMines(target) && peekForAdjEmpty(target)){
+					minesRemoved += removeMine3x3(target);
 				}
 			}
 		}
@@ -200,7 +404,6 @@ int boardSolver::resetRemainder() {
 	}
 	
 	minesToPlace = minesRemoved;
-	std::cerr << "Populated Potential Mine Vector; placing: " << minesToPlace << " Mines\n";
 	
 	while (minesToPlace != 0) {
 		vPotMineIndex = rand() % (maxMineIndex);
@@ -211,56 +414,54 @@ int boardSolver::resetRemainder() {
 			target.tile->setMine();
 			currBoard->doOnAllAdj(&gameTile::incAdjMines, target.r, target.c);
 			minesToPlace--;
-			std::cerr << minesToPlace << " Mines left to place\n";
 		}
 	}
 	return minesRemoved;
 }
 
 
-void boardSolver::solverFlag(solverTile& target) {
+
+// The following functions are helper functions to resetRemainder that actually removes a mine from a tile
+
+void boardSolver::removeMineOnTile(solverTile& target) {
 	int r = target.r;
 	int c = target.c;
-	char state = state = target.tile->getState();
-	if (state == 'E){
-		currBoard->setFlagOnTile(r, c);
-		bProgress = true;
+	if ((*currBoard)(r, c)->isMine()) {
+		(*currBoard)(r, c)->removeMine();
+		currBoard->doOnAllAdj(&gameTile::decAdjMines, r, c);
+		return;
 	}
 }
 
 
-void boardSolver::solverRSFlag(solverTile& target) {
-	solverFlag(target);
-	recursiveAdjSolve(target);
-}
 
-void boardSolver::solverFlagAllAdj(solverTile& target) {
-	int height = currBoard->getHeight() + 1;
-	int width = currBoard->getWidth() + 1;
+int boardSolver::removeMine3x3(solverTile& target) {
 	int r = target.r;
 	int c = target.c;
-	char state;
-	solverTile flagTarget;
-	for (signed int i = -1; i <= 1; i++) {
-		for (signed int j = -1; j <= 1; j++) {
-			if (i == 0 && j == 0) {
-				continue;
-			}
-			else if (r + i < 0 || r + i > height || c + j < 0 || c + j > width) {
-				continue;
-			}
-			else{
-				state = sMatrixAccessor[r + i][c + j].getState();
-				if (state == 'E'){
-					flagTarget.r = r + i;
-					flagTarget.c = c + j;
-					flagTarget.tile = sMatrixAccessor[r + i][c + j].tile;
-					solverRSFlag(flagTarget);
-				}
+	int returnVal = 0;
+	
+	for (signed int i = -1; i < 2; i++){
+		for (signed int j = -1; j < 2; j++){
+			if ((*currBoard)(r + i, c + j)->isMine()) {
+				(*currBoard)(r + i, c + j)->removeMine();
+				currBoard->doOnAllAdj(&gameTile::decAdjMines, r + i, c + j);
+				currBoard->doOnAllAdj(&gameBoard::unsetTile, r + i, c + j);
+				returnVal++;
 			}
 		}
 	}
+	return returnVal;
 }
+
+
+
+// End of Resetters ===================================================================================================
+
+
+
+// Adjacent Tile Peekers
+// These functions take a peek at adjacent tiles, to ascertain certain information that is needed to decide
+// what the solver should do.
 
 bool boardSolver::peekForAdjPressed(solverTile& target) {
 	int height = currBoard->getHeight() + 1;
@@ -273,7 +474,7 @@ bool boardSolver::peekForAdjPressed(solverTile& target) {
 			if (i == 0 && j == 0) {
 				continue;
 			}
-			else if (r + i < 0 || r + i > height || c + j < 0 || c + j > width) {
+			else if (((r + i) > height) || ((r + i) < 0) || ((c + j) > width) || ((c + j) < 0)) {
 				continue;
 			}
 			else{
@@ -287,6 +488,8 @@ bool boardSolver::peekForAdjPressed(solverTile& target) {
 	return false;
 }
 
+
+
 bool boardSolver::peekForAdjEmpty(solverTile& target) {
 	int height = currBoard->getHeight() + 1;
 	int width = currBoard->getWidth() + 1;
@@ -298,7 +501,7 @@ bool boardSolver::peekForAdjEmpty(solverTile& target) {
 			if (i == 0 && j == 0) {
 				continue;
 			}
-			else if (r + i < 0 || r + i > height || c + j < 0 || c + j > width) {
+			else if (((r + i) > height) || ((r + i) < 0) || ((c + j) > width) || ((c + j) < 0)) {
 				continue;
 			}
 			else{
@@ -312,6 +515,8 @@ bool boardSolver::peekForAdjEmpty(solverTile& target) {
 	return false;
 }
 
+
+
 bool boardSolver::peekForAdjAllMines(solverTile& target) {
 	int height = currBoard->getHeight() + 1;
 	int width = currBoard->getWidth() + 1;
@@ -323,7 +528,7 @@ bool boardSolver::peekForAdjAllMines(solverTile& target) {
 			if (i == 0 && j == 0) {
 				continue;
 			}
-			else if (r + i < 0 || r + i > height || c + j < 0 || c + j > width) {
+			else if (((r + i) > height) || ((r + i) < 0) || ((c + j) > width) || ((c + j) < 0)) {
 				continue;
 			}
 			else{
@@ -337,77 +542,17 @@ bool boardSolver::peekForAdjAllMines(solverTile& target) {
 	return false;
 }
 
-void boardSolver::removeMineOnTile(solverTile& target) {
-	int r = target.r;
-	int c = target.c;
-	if ((*currBoard)(r, c)->isMine()) {
-		(*currBoard)(r, c)->removeMine();
-		currBoard->doOnAllAdj(&gameTile::decAdjMines, r, c);
-		return;
-	}
-}
 
-
-/* These following two functions are helper functions for the Shared Adjacency patterns;
-** One might notice that these functions use versions of the code that will not/cannot make a recursive call
-** to the tiles Adjacent to the tiles it either presses or flags. This is intentional, as iterative wrapper around
-** the recursion function(s) will repeat itself unless no further progress have been made on the board.
-** As the various forms of the Shared Adjacency pattern does not fully solve the tile, but instead merely add information,
-** letting this function to make recursive calls will cause runaway recursion to occur.
-*/
-void boardSolver::flagAdjExcShared(solverTile& focus, solverTile& constraint){
-	int r = focus.r;
-	int c = focus.c;
-	solverTile target;
-	for(signed int i = -1; i < 2; i++){
-		for(signed int j = -1; j < 2; j++){
-			if (i == 0 && j == 0) continue;
-			if(((((r + i) == (constraint.r - 1)) && ((c + j)) == (constraint.c - 1)))
-			|| ((((r + i) == (constraint.r - 1)) && ((c + j)) == (constraint.c + 0)))
-			|| ((((r + i) == (constraint.r - 1)) && ((c + j)) == (constraint.c + 1)))
-			|| ((((r + i) == (constraint.r + 0)) && ((c + j)) == (constraint.c - 1)))
-			|| ((((r + i) == (constraint.r + 0)) && ((c + j)) == (constraint.c + 0)))
-			|| ((((r + i) == (constraint.r + 0)) && ((c + j)) == (constraint.c + 1)))
-			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c - 1)))
-			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c + 0)))
-			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c + 1)))) continue;
-			target.r = r + i;
-			target.c = c + j;
-			target.tile = sMatrixAccessor[r + i][c + j].tile;
-			solverFlag(target);
-		}
-	}
-}
-
-void boardSolver::pressAdjExcShared(solverTile& focus, solverTile& constraint){
-	int r = focus.r;
-	int c = focus.c;
-	for(signed int i = -1; i < 2; i++){
-		for(signed int j = -1; j < 2; j++){
-			if (i == 0 && j == 0) continue;
-			if(((((r + i) == (constraint.r - 1)) && ((c + j)) == (constraint.c - 1)))
-			|| ((((r + i) == (constraint.r - 1)) && ((c + j)) == (constraint.c + 0)))
-			|| ((((r + i) == (constraint.r - 1)) && ((c + j)) == (constraint.c + 1)))
-			|| ((((r + i) == (constraint.r + 0)) && ((c + j)) == (constraint.c - 1)))
-			|| ((((r + i) == (constraint.r + 0)) && ((c + j)) == (constraint.c + 0)))
-			|| ((((r + i) == (constraint.r + 0)) && ((c + j)) == (constraint.c + 1)))
-			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c - 1)))
-			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c + 0)))
-			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c + 1)))) continue;
-			if (currBoard(r + i, c + j)->getState == 'E'){
-				currBoard->pressTileWOChain(r + i, c + j);
-				bProgress = true;
-			}
-		}
-	}
-}
 
 int boardSolver::countSharedFree(solverTile& tileA, solverTile& tileB){
+	int height = currBoard->getHeight() + 1;
+	int width = currBoard->getWidth() + 1;
 	int returnVal = 0;
 	int r = tileA.r;
 	int c = tileA.c;
 	for(signed int i = -1; i < 2; i++){
 		for(signed int j = -1; j < 2; j++){
+			if (((r + i) > height) || ((r + i) < 0) || ((c + j) > width) || ((c + j) < 0)) continue;
 			if (i == 0 && j == 0) continue;
 			if (((r + i) == (tileB.r + 0)) && ((c + j)) == (tileB.c + 0)) continue;
 			if(((((r + i) == (tileB.r - 1)) && ((c + j)) == (tileB.c - 1)))
@@ -418,21 +563,25 @@ int boardSolver::countSharedFree(solverTile& tileA, solverTile& tileB){
 			|| ((((r + i) == (tileB.r + 1)) && ((c + j)) == (tileB.c - 1)))
 			|| ((((r + i) == (tileB.r + 1)) && ((c + j)) == (tileB.c + 0)))
 			|| ((((r + i) == (tileB.r + 1)) && ((c + j)) == (tileB.c + 1)))){
-				returnVal++;
-				continue;
+				if ((*currBoard)(r + i, c + j)->getState() == 'E') returnVal++;
 			}
 		}
 	}
 	return returnVal;
 }
 
-/* This is the most commonly seen pattern in minesweeper, and the most useful one to start simplifying a problem
-** Whenever a large number is directly adjacent (or in a more advanced version of the logic, has a 1 tile gap between the two)
-** to a tile with significantly less # of mines adj to it, it can often be used to glean useful information.
-*/
+
+
+// End of Peekers =====================================================================================================
+
+
+
+// Pattern Solvers
+
+// This is the most commonly seen pattern in minesweeper, and the most useful one to start simplifying a problem
+// Whenever a large number is directly adjacent (or in a more advanced version of the logic, has a 1 tile gap between the two)
+// to a tile with significantly less # of mines adj to it, it can often be used to glean useful information.
 bool boardSolver::testPattSharedAdjs(solverTile& targetA){
-	
-	
 	int height = currBoard->getHeight() + 1;
 	int width = currBoard->getWidth() + 1;
 	int r = targetA.r;
@@ -443,18 +592,18 @@ bool boardSolver::testPattSharedAdjs(solverTile& targetA){
 	int adjForA;
 	int adjForB;
 	int sharedAdj;
-	bool returnVal = false;
 	
 	minesA = sMatrixAccessor[r][c].getRemMines();
 	adjForA = sMatrixAccessor[r][c].getAdjTiles();
 	for (signed int i = -2; i < 3; i++){
 		for(signed int j = -2; j < 3; j++){
-			if (r + i > height || r + i < 0 || c + j > width || c + j < 0) continue;
+			if (((r + i) > height) || ((r + i) < 0) || ((c + j) > width) || ((c + j) < 0)) continue;
 			if (i == 0 && j == 0) continue;
 			if (sMatrixAccessor[r + i][c + j].getState() == 'P'){
+			
 				/* The block of code inside this if block checks if there are mines in excess of the number 
-				** of non-shared tiles. Between the two blocks being looked at, which are always no more 
-				** than 1 tile apart from each other in any of the possible 8 directions, if the difference
+				** of non-shared tiles. Between the two blocks being looked at (which are always no more 
+				** than 1 tile apart from each other in any of the possible 8 directions) if the difference
 				** of the non-shared adj tiles with max value for the remaining # of Adjacent mines between the two
 				** is equal to the min value for the remaining # of Adjacent mines between the two:
 				** It will flag all of the non-shared adj tiles for the appropriate tile, and press all
@@ -463,45 +612,49 @@ bool boardSolver::testPattSharedAdjs(solverTile& targetA){
 				*/
 				targetB = sMatrixAccessor[r + i][c + j];
 				sharedAdj = countSharedFree(targetA, targetB);
-				if (sharedAdj < 2) continue;
 				minesB = targetB.getRemMines();
-				adjForB = targetB.getRemMines();
-				
+				adjForB = targetB.getAdjTiles();
+				if (sharedAdj < 2) continue;
 				
 				if (minesA == minesB){
 					if (adjForA == sharedAdj){
 						pressAdjExcShared(targetB, targetA);
-						returnVal = true;
+						return true;
 					}
 					else if(adjForB == sharedAdj){
 						pressAdjExcShared(targetA, targetB);
-						returnVal = true;
+						return true;
 					}
 				}
-				
-				/*
 				else if (minesA < minesB){
-					if (minesB - (adjForB - sharedAdj) ==  minesA){
+					if ((minesB - (adjForB - sharedAdj)) ==  minesA){
 						flagAdjExcShared(targetB, targetA);
 						pressAdjExcShared(targetA, targetB);
-						returnVal = true;
+						return true;
+					}
+					else if ((adjForA == sharedAdj) && ((minesB - minesA) == (adjForB - sharedAdj))){
+						flagAdjExcShared(targetB, targetA);
+						return true;
 					}
 				}
-				*/
-				/*
 				else if (minesA > minesB){
-					if (minesA - (adjForA - sharedAdj) ==  minesB){
+					if ((minesA - (adjForA - sharedAdj)) ==  minesB){
 						flagAdjExcShared(targetA, targetB);
 						pressAdjExcShared(targetB, targetA);
-						returnVal = true;
+						return true;
+					}
+					else if((adjForB == sharedAdj) && ((minesA - minesB) == (adjForA - sharedAdj))){
+						flagAdjExcShared(targetA, targetB);
+						return true;
 					}
 				}
-				*/
 			}
 		}
 	}
-	return returnVal;
+	return false;
 }
+
+
 
 bool boardSolver::testPatt131Corner(solverTile& target){
 	int height = currBoard->getHeight() + 1;
@@ -509,6 +662,7 @@ bool boardSolver::testPatt131Corner(solverTile& target){
 	int r = target.r;
 	int c = target.c;
 	bool returnVal = false;
+	solverTile oneTiles[2];
 	
 	int exitCondition = 0;
 	if (r - 1 < 0 || r + 1 > height || c - 1 < 0 || c + 1 < width) return returnVal;
@@ -521,59 +675,250 @@ bool boardSolver::testPatt131Corner(solverTile& target){
 		return returnVal;
 	}
 	
-	if(sMatrixAccessor[r][c].getRemMines() == 3){
+	if(target.getRemMines() == 3 && target.getAdjTiles() == 5){
 		if (sMatrixAccessor[r + 1][c + 1].getState() == 'P'){
 			if((sMatrixAccessor[r + 0][c + 1].getState() == 'P') && (sMatrixAccessor[r + 1][c + 0].getState() == 'P')){
 				if((sMatrixAccessor[r + 0][c + 1].getRemMines() == 1) && (sMatrixAccessor[r + 1][c + 0].getRemMines() == 1)){
+					oneTiles[0].r = r + 1;
+					oneTiles[0].c = c;
+					oneTiles[0].tile = (*currBoard)(oneTiles[0].r, oneTiles[0].c);
+					oneTiles[1].r = r;
+					oneTiles[1].c = c + 1;
+					oneTiles[1].tile = (*currBoard)(oneTiles[1].r, oneTiles[1].c);
 					solverFlag(sMatrixAccessor[r - 1][c - 1]);
-					solverFlag(sMatrixAccessor[r + 1][c - 1]);
-					solverFlag(sMatrixAccessor[r - 1][c + 1]);
+					pressAdjExcShared(oneTiles[0],target);
+					pressAdjExcShared(oneTiles[1],target);
 					returnVal = true;
-					recursiveAdjSolve(sMatrixAccessor[r - 1][c - 1]);
-					recursiveAdjSolve(sMatrixAccessor[r + 1][c - 1]);
-					recursiveAdjSolve(sMatrixAccessor[r - 1][c + 1]);
 				}
+			}
+			else
+			{
+				return returnVal;
 			}
 		}
 		else if (sMatrixAccessor[r + 1][c - 1].getState() == 'P'){
 			if((sMatrixAccessor[r + 0][c - 1].getState() == 'P') && (sMatrixAccessor[r + 1][c + 0].getState() == 'P')){
 				if((sMatrixAccessor[r + 0][c - 1].getRemMines() == 1) && (sMatrixAccessor[r + 1][c + 0].getRemMines() == 1)){
-					solverFlag(sMatrixAccessor[r - 1][c - 1]);
-					solverFlag(sMatrixAccessor[r + 1][c + 1]);
+					oneTiles[0].r = r;
+					oneTiles[0].c = c - 1;
+					oneTiles[0].tile = (*currBoard)(oneTiles[0].r, oneTiles[0].c);
+					oneTiles[1].r = r + 1;
+					oneTiles[1].c = c;
+					oneTiles[1].tile = (*currBoard)(oneTiles[1].r, oneTiles[1].c);
 					solverFlag(sMatrixAccessor[r - 1][c + 1]);
+					pressAdjExcShared(oneTiles[0],target);
+					pressAdjExcShared(oneTiles[1],target);
 					returnVal = true;
-					recursiveAdjSolve(sMatrixAccessor[r - 1][c - 1]);
-					recursiveAdjSolve(sMatrixAccessor[r + 1][c + 1]);
-					recursiveAdjSolve(sMatrixAccessor[r - 1][c + 1]);
 				}
+			}
+			else
+			{
+				return returnVal;
 			}
 		}
 		else if (sMatrixAccessor[r - 1][c - 1].getState() == 'P'){
 			if((sMatrixAccessor[r + 0][c - 1].getState() == 'P') && (sMatrixAccessor[r - 1][c + 0].getState() == 'P')){
 				if((sMatrixAccessor[r + 0][c - 1].getRemMines() == 1) && (sMatrixAccessor[r - 1][c + 0].getRemMines() == 1)){
-					solverFlag(sMatrixAccessor[r + 1][c + 1]);
-					solverFlag(sMatrixAccessor[r + 1][c - 1]);
-					solverFlag(sMatrixAccessor[r - 1][c + 1]);
+					oneTiles[0].r = r - 1;
+					oneTiles[0].c = c;
+					oneTiles[0].tile = (*currBoard)(oneTiles[0].r, oneTiles[0].c);
+					oneTiles[1].r = r;
+					oneTiles[1].c = c - 1;
+					oneTiles[1].tile = (*currBoard)(oneTiles[1].r, oneTiles[1].c);
+					solverFlag(sMatrixAccessor[r - 1][c - 1]);
+					pressAdjExcShared(oneTiles[0],target);
+					pressAdjExcShared(oneTiles[1],target);
 					returnVal = true;
-					recursiveAdjSolve(sMatrixAccessor[r + 1][c + 1]);
-					recursiveAdjSolve(sMatrixAccessor[r + 1][c - 1]);
-					recursiveAdjSolve(sMatrixAccessor[r - 1][c + 1]);
 				}
+			}
+			else
+			{
+				return returnVal;
 			}
 		}
 		else if (sMatrixAccessor[r - 1][c + 1].getState() == 'P'){
 			if((sMatrixAccessor[r + 0][c + 1].getState() == 'P') && (sMatrixAccessor[r - 1][c + 0].getState() == 'P')){
 				if((sMatrixAccessor[r + 0][c + 1].getRemMines() == 1) && (sMatrixAccessor[r - 1][c + 0].getRemMines() == 1)){
+					oneTiles[0].r = r - 1;
+					oneTiles[0].c = c;
+					oneTiles[0].tile = (*currBoard)(oneTiles[0].r, oneTiles[0].c);
+					oneTiles[1].r = r;
+					oneTiles[1].c = c + 1;
+					oneTiles[1].tile = (*currBoard)(oneTiles[1].r, oneTiles[1].c);
 					solverFlag(sMatrixAccessor[r - 1][c - 1]);
-					solverFlag(sMatrixAccessor[r + 1][c - 1]);
-					solverFlag(sMatrixAccessor[r + 1][c + 1]);
+					pressAdjExcShared(oneTiles[0],target);
+					pressAdjExcShared(oneTiles[1],target);
 					returnVal = true;
-					recursiveAdjSolve(sMatrixAccessor[r - 1][c - 1]);
-					recursiveAdjSolve(sMatrixAccessor[r + 1][c - 1]);
-					recursiveAdjSolve(sMatrixAccessor[r + 1][c + 1]);
 				}
+			}
+			else
+			{
+				return returnVal;
 			}
 		}
 	}
 	return returnVal;
 }
+
+
+
+bool boardSolver::testPatt121Island(solverTile& target){
+	int height = currBoard->getHeight() + 1;
+	int width = currBoard->getWidth() + 1;
+	int r = target.r;
+	int c = target.c;
+	
+	if(!(target.getRemMines() == 2)) return false;
+	
+	solverTile newsTiles[4]; // news stands for North, East, West, South; the indexes are in that respective order.
+	newsTiles[0].r = r - 1; 
+	newsTiles[0].c = c;
+	newsTiles[1].r = r;
+	newsTiles[1].c = c + 1;
+	newsTiles[2].r = r;
+	newsTiles[2].c = c - 1;
+	newsTiles[3].r = r + 1;
+	newsTiles[3].c = c;
+	if (((r - 1) < 0) ^ ((c + 1) > width) ^ ((c - 1) < 0) ^ ((r + 1) > height)){
+		if (!((r - 1) < 0)) newsTiles[0].tile = (*currBoard)(newsTiles[0].r, newsTiles[0].c);
+		else newsTiles[0].tile = nullptr;
+		if (!((c + 1) > width)) newsTiles[1].tile = (*currBoard)(newsTiles[1].r, newsTiles[1].c);
+		else newsTiles[1].tile = nullptr;
+		if (!((c - 1) < 0)) newsTiles[2].tile = (*currBoard)(newsTiles[2].r, newsTiles[2].c);
+		else newsTiles[2].tile = nullptr;
+		if (!((r + 1) > height)) newsTiles[3].tile = (*currBoard)(newsTiles[3].r, newsTiles[3].c);
+		else newsTiles[3].tile = nullptr;
+	}
+	else{
+		return false;
+	}
+	
+	if(newsTiles[0].tile != nullptr && newsTiles[3].tile != nullptr){
+		if((newsTiles[0].getState() == 'P') && (newsTiles[3].getState() == 'P')){ 
+			if((newsTiles[0].getRemMines() == 1) && (newsTiles[3].getRemMines() == 1)){
+				if(newsTiles[1].tile != nullptr){
+					solverPress(newsTiles[1]);
+					if(newsTiles[1].getRemMines() == 1) pressAdjExcShared(newsTiles[1],target);
+				}
+				if(newsTiles[2].tile != nullptr){
+					solverPress(newsTiles[2]);
+					if(newsTiles[2].getRemMines() == 1) pressAdjExcShared(newsTiles[2],target);
+				}
+			}
+			pressAdjExcShared(newsTiles[0],target);
+			pressAdjExcShared(newsTiles[3],target);
+			return true;
+		}
+	}
+	else if(newsTiles[1].tile != nullptr && newsTiles[2].tile != nullptr){
+		if((newsTiles[1].getState() == 'P') && (newsTiles[2].getState() == 'P')){ 
+			if((newsTiles[1].getRemMines() == 1) && (newsTiles[2].getRemMines() == 1)){
+				if(newsTiles[0].tile != nullptr){
+					solverPress(newsTiles[0]);
+					if(newsTiles[0].getRemMines() == 1) pressAdjExcShared(newsTiles[0],target);
+				}
+				if(newsTiles[3].tile != nullptr){
+					solverPress(newsTiles[3]);
+					if(newsTiles[3].getRemMines() == 1) pressAdjExcShared(newsTiles[3],target);
+				}
+			}
+			pressAdjExcShared(newsTiles[1],target);
+			pressAdjExcShared(newsTiles[2],target);
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+
+
+// End of Pattern Solvers =============================================================================================
+
+
+
+// Debug Helpers
+void boardSolver::solverPrint(std::ostream& output) {
+	int height = currBoard->getHeight() + 1;
+	int width = currBoard->getWidth() + 1;
+	gameTile* targetTile;
+	char tileState;
+	
+	output << "Remaining Mines Board\n";
+	
+	output << std::setfill(' ') << std::hex;
+	output << "X  X  ";
+	for (int j = 1; j < width; j++) {
+		output << std::setw(3) << std::left << j;
+	}
+	output << "X  \n";
+	for (int i = 0; i <= height; i++) {
+		for (int j = 0; j <= width; j++) {
+			if (j == 0) {
+				if (i == 0 || i == height) output << "X  ";
+				else output << std::setw(3) << std::left << i;
+			}
+			targetTile = (sMatrixAccessor[i][j].tile);
+			tileState = targetTile->getState();
+			switch (tileState) {
+			case 'E':
+			case 'F':
+			case 'Q':
+				output << std::setw(3) << std::left << tileState;
+				break;
+			case 'P':
+			case 'C':
+				if (targetTile->isMine()) {
+					output << std::setw(3) << std::left << "M";
+				}
+				else {
+					output << std::setw(3) << std::left << targetTile->getRemMines();
+				}
+			}
+
+		}
+		output << "\n";
+	}
+	output << "\n\n";
+	
+	output << "Remaining Free Tiles Board\n";
+	
+	output << std::setfill(' ') << std::hex;
+	output << "X  X  ";
+	for (int j = 1; j < width; j++) {
+		output << std::setw(3) << std::left << j;
+	}
+	output << "X  \n";
+	for (int i = 0; i <= height; i++) {
+		for (int j = 0; j <= width; j++) {
+			if (j == 0) {
+				if (i == 0 || i == height) output << "X  ";
+				else output << std::setw(3) << std::left << i;
+			}
+			targetTile = (sMatrixAccessor[i][j].tile);
+			tileState = targetTile->getState();
+			switch (tileState) {
+			case 'E':
+			case 'F':
+			case 'Q':
+				output << std::setw(3) << std::left << tileState;
+				break;
+			case 'P':
+			case 'C':
+				if (targetTile->isMine()) {
+					output << std::setw(3) << std::left << "M";
+				}
+				else {
+					output << std::setw(3) << std::left << targetTile->getAdjTiles();
+				}
+			}
+
+		}
+		output << "\n";
+	}
+	output << "\n\n";
+}
+
+
+
+// End of Debug Helpers ===============================================================================================
