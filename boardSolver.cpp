@@ -31,115 +31,91 @@ boardSolver::boardSolver(gameBoard* initBoard){
 	}
 }
 
+boardSolver::~boardSolver(){
+	delete sMatrixAccessor;
+	delete sTileMatrix;
+}
+
 void boardSolver::solveBoard() {
 	int height = currBoard->getHeight() + 1;
 	int width = currBoard->getWidth() + 1;
 	solverTile target;
 	bProgress = false;
 	
-	
-	int iterationCount = 0;
-	
 	while(true){
 		do{
 			bProgress = false;
-			for (int i = 1; i < height; i++) {
-				for (int j = 1; j < width; j++) {
-					if (sMatrixAccessor[i][j].getState() == 'E'){
-						target.r = i;
-						target.c = j;
-						target.tile = (*currBoard)(i, j);
-						if (peekForAdjPressed(target)){
-							solveTile(target);
-						}
-					}
-					else if (sMatrixAccessor[i][j].getState() == 'P'){
+			for (int i = 0; i <= height; i++) {
+				for (int j = 0; j <= width; j++) {
+					if (sMatrixAccessor[i][j].getState() == 'P'){
 						target.r = i;
 						target.c = j;
 						target.tile = (*currBoard)(i, j);
 						if (peekForAdjEmpty(target)){
-							solvePattern(target);
+							solveTile(target);
 						}
 					}
 				}
 			}
-		}while (bProgress);
+			std::cerr << "bProgress = " << bProgress << "\n\n";
+			currBoard->printBoard(std::cerr);
+		}while (bProgress == true);
 		
-		if (currBoard->getSafeTiles() != 0){
-			resetRemainder();
-		}
-		else{
+		if (resetRemainder() == 0){
 			break;
 		}
 	}
 }
 
-boardSolver::~boardSolver(){
-	delete sMatrixAccessor;
-	delete sTileMatrix;
-}
-
 
 void boardSolver::solveTile(solverTile& target) {
-	int height = currBoard->getHeight() + 1;
-	int width = currBoard->getWidth() + 1;
 	int r = target.r;
 	int c = target.c;
 	
-	if (target.getState() == 'P' || target.getState() == 'F' || target.getState() == 'C'){
+	/* Solver Logic Begins */
+	std::cerr << "Solver logic: single tile begin\n";
+	if (target.getState() == 'E' || target.getState() == 'F'){
+		return;
+	}
+	if (target.getAdjTiles() == 0) {
+		std::cerr << "Tile Fully solved\n";
+		target.tile->setCleared();
+		return;
+	}
+	/* Minesweeper Solution Logic Type 0: Nearby Tile Cleared */
+	if (target.getRemMines() == 0){
+		/* 0.1 Type No Remaining Mines */
+		std::cerr << "Solver logic: no more mines\n";
+		currBoard->doOnAllAdj(&gameBoard::pressTileWOChain, r, c);
+		recursiveAdjSolve(target);
+		bProgress = true;
+		return;
+	}
+	else if (target.getRemMines() == target.getAdjTiles()){
+		/* Type 0.2 Type Only Mines Remaining */
+		std::cerr << "Solver logic: no more safe tiles\n";
+		solverFlagAllAdj(target);
+		bProgress = true;
 		return;
 	}
 	
-	int k = 0;
-	for (signed int i = -1; i <= 1; i++) {
-		for (signed int j = -1; j <= 1; j++, k++) {
-			if ((sMatrixAccessor[r + i][c + j].getState() == 'P' ||
-				 sMatrixAccessor[r + i][c + j].getState() == 'C')) {
-			} 
-			
-			if (i == 0 && j == 0) {
-				continue;
-			}
-			else if (r + i < 0 || r + i > height || c + j < 0 || c + j > width) {
-				continue;
-			}
-			else{ /* Solver Logic Begins */
-				if ((sMatrixAccessor[r + i][c + j].getState() == 'P' ||
-					 sMatrixAccessor[r + i][c + j].getState() == 'C')) {
-					/* Minesweeper Solution Logic Type 0: Nearby Tile Cleared */
-					if (sMatrixAccessor[r + i][c + j].getRemMines() == 0){
-					/* 0.1 Type No Remaining Mines */
-					std::cerr << "Solver logic: no more mines\n";
-						currBoard->doOnAllAdj(&gameBoard::pressTileWOChain, r + i, c + j);
-						recursiveAdjSolve(sMatrixAccessor[r + i][c + j]);
-						bProgress = true;
-						return;
-					}
-					else if (sMatrixAccessor[r + i][c + j].getRemMines() == sMatrixAccessor[r + i][c + j].getAdjTiles()){
-					/* Type 0.2 Type Only Mines Remaining */
-					std::cerr << "Solver logic: no more safe tiles\n";
-						solverFlagAllAdj(sMatrixAccessor[r + i][c + j]);
-						bProgress = true;
-						return;
-					}
-				}
-			}
-		}
-	}
-	std::cerr << "Exiting tile Solver\n";
+	std::cerr << "bProgress is still 0; 0 = " << bProgress << "\n";
+	std::cerr << "Exiting single tile Solver and calling pattern based solver.\n";
+	solvePattern(target);
 }
 
 void boardSolver::solvePattern(solverTile& target){
 	/* Logic Type 0 End */
 	std::cerr << "Solver logic: Patterns begin\n";
-	if(testPattLargeAdjSmall(target)){
+	if(testPattSharedAdjs(target) == true){
 		bProgress = true;
 		return;
 	}
-	if(testPatt131Corner(target)){
+	if(testPatt131Corner(target) == true){
 		bProgress = true;
 		return;
 	}
+	std::cerr << "Solver logic: Patterns not found\n";
 }
 
 
@@ -163,10 +139,10 @@ void boardSolver::recursiveAdjSolve(solverTile& target){
 			}
 			else{
 				state = sMatrixAccessor[r + i][c + j].getState();
-				if (state == 'P' || state == 'C'){
+				if (state != 'P'){
 					continue;
 				}
-				else if (state == 'E'){
+				else if (state == 'P'){
 					nextTarget.r = r + i;
 					nextTarget.c = c + j;
 					nextTarget.tile = sMatrixAccessor[r + i][c + j].tile;
@@ -177,10 +153,11 @@ void boardSolver::recursiveAdjSolve(solverTile& target){
 	}
 }
 
-void boardSolver::resetRemainder() {
+int boardSolver::resetRemainder() {
 	int height = currBoard->getHeight();
 	int width = currBoard->getWidth();
 	solverTile target;
+	int minesToPlace = 0;
 	int minesRemoved = 0;
 	int maxMineIndex = 0;
 	int vPotMineIndex = 0;
@@ -191,6 +168,26 @@ void boardSolver::resetRemainder() {
 	
 	for (int i = 1; i <= height; i++) {
 		for (int j = 1; j <= width; j++) {
+			if ((*currBoard)(i, j)->getState() == 'E'){
+				target.r = i;
+				target.c = j;
+				target.tile = (*currBoard)(i, j);
+				possMineLocs.push_back(target);
+				maxMineIndex++;
+				if ((*currBoard)(i, j)->isMine()){
+					if(!(peekForAdjAllMines(target))){
+						std::cerr << "Removing Mine\n";
+						removeMineOnTile(target);
+						minesRemoved++;
+					}
+				}
+			}
+		}
+	}
+	
+	if (minesRemoved == 0) return 0;
+	for (int i = 1; i <= height; i++) {
+		for (int j = 1; j <= width; j++) {
 			state = (*currBoard)(i, j)->getState();
 			if(state == 'P' || state == 'C'){
 				target.r = i;
@@ -198,27 +195,18 @@ void boardSolver::resetRemainder() {
 				target.tile = (*currBoard)(i, j);
 				if ((*currBoard)(i, j)->getAdjMines() == 0){
 					currBoard->unsetTile(i, j);
+					currBoard->doOnAllAdj(&gameTile::setClearedToPressed, i, j);
 					possMineLocs.push_back(target);
 					maxMineIndex++;
 				}
 			}
-			else if ((*currBoard)(i, j)->getState() == 'E'){
-				target.r = i;
-				target.c = j;
-				target.tile = (*currBoard)(i, j);
-				possMineLocs.push_back(target);
-				maxMineIndex++;
-				if ((*currBoard)(i, j)->isMine()){
-					std::cerr << "Removing Mine\n";
-					removeMineOnTile(target);
-					minesRemoved++;
-				}
-			}
 		}
 	}
-	std::cerr << "Populated Potential Mine Vector; placing " << minesRemoved << " Mines\n";
 	
-	while (minesRemoved != 0) {
+	minesToPlace = minesRemoved;
+	std::cerr << "Populated Potential Mine Vector; placing: " << minesToPlace << " Mines\n";
+	
+	while (minesToPlace != 0) {
 		vPotMineIndex = rand() % (maxMineIndex);
 		target.r = possMineLocs[vPotMineIndex].r;
 		target.c = possMineLocs[vPotMineIndex].c;
@@ -226,10 +214,11 @@ void boardSolver::resetRemainder() {
 		if (target.tile->isMine() == 0) {
 			target.tile->setMine();
 			currBoard->doOnAllAdj(&gameTile::incAdjMines, target.r, target.c);
-			minesRemoved--;
-			std::cerr << minesRemoved << " Mines left to place\n";
+			minesToPlace--;
+			std::cerr << minesToPlace << " Mines left to place\n";
 		}
 	}
+	return minesRemoved;
 }
 
 
@@ -262,10 +251,7 @@ void boardSolver::solverFlagAllAdj(solverTile& target) {
 			}
 			else{
 				state = sMatrixAccessor[r + i][c + j].getState();
-				if (state == 'P' || state == 'C'){
-					continue;
-				}
-				else if (state == 'E'){
+				if (state == 'E'){
 					flagTarget.r = r + i;
 					flagTarget.c = c + j;
 					flagTarget.tile = sMatrixAccessor[r + i][c + j].tile;
@@ -326,6 +312,31 @@ bool boardSolver::peekForAdjEmpty(solverTile& target) {
 	return false;
 }
 
+bool boardSolver::peekForAdjAllMines(solverTile& target) {
+	int height = currBoard->getHeight() + 1;
+	int width = currBoard->getWidth() + 1;
+	int r = target.r;
+	int c = target.c;
+	int mine = 0;
+	for (signed int i = -1; i <= 1; i++) {
+		for (signed int j = -1; j <= 1; j++) {
+			if (i == 0 && j == 0) {
+				continue;
+			}
+			else if (r + i < 0 || r + i > height || c + j < 0 || c + j > width) {
+				continue;
+			}
+			else{
+				if ((*currBoard)(r + i, c + j)->isMine()) mine++;
+				if (mine == 8){
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
 void boardSolver::removeMineOnTile(solverTile& target) {
 	int r = target.r;
 	int c = target.c;
@@ -336,11 +347,18 @@ void boardSolver::removeMineOnTile(solverTile& target) {
 	}
 }
 
+
+/* These following two functions are helper functions for the Shared Adjacency patterns;
+** One might notice that these functions use versions of the code that will not/cannot make a recursive call
+** to the tiles Adjacent to the tiles it either presses or flags. This is intentional, as iterative wrapper around
+** the recursion function(s) will repeat itself unless no further progress have been made on the board.
+** As the various forms of the Shared Adjacency pattern does not fully solve the tile, but instead merely add information,
+** letting this function to make recursive calls will cause runaway recursion to occur.
+*/
 void boardSolver::flagAdjExcShared(solverTile& focus, solverTile& constraint){
 	int r = focus.r;
 	int c = focus.c;
 	solverTile target;
-	queue<solverTile> recCallQueue;
 	for(signed int i = -1; i < 2; i++){
 		for(signed int j = -1; j < 2; j++){
 			if (i == 0 && j == 0) continue;
@@ -357,21 +375,13 @@ void boardSolver::flagAdjExcShared(solverTile& focus, solverTile& constraint){
 			target.c = c + j;
 			target.tile = sMatrixAccessor[r + i][c + j].tile;
 			solverFlag(target);
-			recCallQueue.push(target);
 		}
-	}
-	while(!recCallQueue.empty()){
-		target = recCallQueue.front();
-		recursiveAdjSolve(target);
-		recCallQueue.pop();
 	}
 }
 
 void boardSolver::pressAdjExcShared(solverTile& focus, solverTile& constraint){
 	int r = focus.r;
 	int c = focus.c;
-	solverTile target;
-	queue<solverTile> recCallQueue;
 	for(signed int i = -1; i < 2; i++){
 		for(signed int j = -1; j < 2; j++){
 			if (i == 0 && j == 0) continue;
@@ -384,14 +394,8 @@ void boardSolver::pressAdjExcShared(solverTile& focus, solverTile& constraint){
 			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c - 1)))
 			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c + 0)))
 			|| ((((r + i) == (constraint.r + 1)) && ((c + j)) == (constraint.c + 1)))) continue;
-			recursiveAdjSolve(target);
-			recCallQueue.push(target);
+			currBoard->pressTileWOChain(r + i, c + j);
 		}
-	}
-	while(!recCallQueue.empty()){
-		target = recCallQueue.front();
-		recursiveAdjSolve(target);
-		recCallQueue.pop();
 	}
 }
 
@@ -423,12 +427,14 @@ int boardSolver::countSharedFree(solverTile& tileA, solverTile& tileB){
 ** Whenever a large number is directly adjacent (or in a more advanced version of the logic, has a 1 tile gap between the two)
 ** to a tile with significantly less # of mines adj to it, it can often be used to glean useful information.
 */
-bool boardSolver::testPattLargeAdjSmall(solverTile& target){
-	return false;
+bool boardSolver::testPattSharedAdjs(solverTile& targetA){
+	
+	
 	int height = currBoard->getHeight() + 1;
 	int width = currBoard->getWidth() + 1;
-	int r = target.r;
-	int c = target.c;
+	int r = targetA.r;
+	int c = targetA.c;
+	solverTile targetB;
 	int minesA;
 	int minesB;
 	int adjForA;
@@ -436,9 +442,8 @@ bool boardSolver::testPattLargeAdjSmall(solverTile& target){
 	int sharedAdj;
 	bool returnVal = false;
 	
-	std::cerr << "Shared Adjacency Solver\n";
-	minesB = sMatrixAccessor[r][c].getRemMines();
-	adjForB = sMatrixAccessor[r][c].getAdjTiles();
+	minesA = sMatrixAccessor[r][c].getRemMines();
+	adjForA = sMatrixAccessor[r][c].getAdjTiles();
 	for (signed int i = -2; i < 3; i++){
 		for(signed int j = -2; j < 3; j++){
 			if (r + i > height || r + i < 0 || c + j > width || c + j < 0) continue;
@@ -453,46 +458,44 @@ bool boardSolver::testPattLargeAdjSmall(solverTile& target){
 				** of the non-shared adj tiles for the other tile. Yeah. That was a mouthful alright.
 				** Of note: This pattern covers both the common 121 and 1221 patterns.
 				*/
-				sharedAdj = countSharedFree(sMatrixAccessor[r][c], sMatrixAccessor[r + i][c + j]);
-				
+				targetB = sMatrixAccessor[r + i][c + j];
+				sharedAdj = countSharedFree(targetA, targetB);
 				if (sharedAdj < 2) continue;
-				if (minesB < sMatrixAccessor[r + i][c + j].getRemMines()){
-					minesA = minesB;
-					adjForA = adjForB;
-					minesB = sMatrixAccessor[r + i][c + j].getRemMines();
-					adjForB = sMatrixAccessor[r + i][c + j].getAdjTiles();
-					if (minesB - (adjForB - sharedAdj) ==  minesA){
-						flagAdjExcShared(sMatrixAccessor[r + i][c + j], sMatrixAccessor[r][c]);
-						pressAdjExcShared(sMatrixAccessor[r][c], sMatrixAccessor[r + i][c + j]);
+				minesB = targetB.getRemMines();
+				adjForB = targetB.getRemMines();
+				
+				/*
+				if (minesA == minesB){
+					if (adjForA == sharedAdj){
+						pressAdjExcShared(targetB, targetA);
+						returnVal = true;
+					}
+					else if(adjForB == sharedAdj){
+						pressAdjExcShared(targetA, targetB);
 						returnVal = true;
 					}
 				}
-				else {
-					minesA = sMatrixAccessor[r + i][c + j].getRemMines();
-					adjForA = sMatrixAccessor[r + i][c + j].getAdjTiles();
+				*/
+				/*
+				else if (minesA < minesB){
 					if (minesB - (adjForB - sharedAdj) ==  minesA){
-					flagAdjExcShared(sMatrixAccessor[r][c], sMatrixAccessor[r + i][c + j]);
-					pressAdjExcShared(sMatrixAccessor[r + i][c + j], sMatrixAccessor[r][c]);
-					returnVal = true;
-					}
-					/* Below is a special case for if the two adjacent tiles have the same values,
-					** and all free adjacencies for one of them are entirely within the other's adjacent tiles.
-					*/
-					if (adjForA == sharedAdj && minesB == minesA){
-						pressAdjExcShared(sMatrixAccessor[r][c], sMatrixAccessor[r + i][c + j]);
-						returnVal = true;
-					}
-					else if(adjForB == sharedAdj && minesB == minesA){
-						pressAdjExcShared(sMatrixAccessor[r + i][c + j], sMatrixAccessor[r][c]);
+						flagAdjExcShared(targetB, targetA);
+						pressAdjExcShared(targetA, targetB);
 						returnVal = true;
 					}
 				}
+				*/
+				/*
+				else if (minesA > minesB){
+					if (minesA - (adjForA - sharedAdj) ==  minesB){
+						flagAdjExcShared(targetA, targetB);
+						pressAdjExcShared(targetB, targetA);
+						returnVal = true;
+					}
+				}
+				*/
 			}
 		}
-	}
-	
-	if (returnVal == false){
-		std::cerr << &(sMatrixAccessor[r][c]) << ": [" << r << "][" << c << "] did not have adj tiles to progress under the adjacency solver.\n";
 	}
 	return returnVal;
 }
@@ -505,7 +508,6 @@ bool boardSolver::testPatt131Corner(solverTile& target){
 	bool returnVal = false;
 	
 	int exitCondition = 0;
-	std::cerr << "1-3-1 corner solver\n";
 	if (r - 1 < 0 || r + 1 > height || c - 1 < 0 || c + 1 < width) return returnVal;
 	
 	if (sMatrixAccessor[r - 1][c - 1].getState() == 'F') exitCondition++;
@@ -569,9 +571,6 @@ bool boardSolver::testPatt131Corner(solverTile& target){
 				}
 			}
 		}
-	}
-	if (returnVal == false){
-		std::cerr << &(sMatrixAccessor[r][c])  << ": [" << r << "][" << c << "] is not adjacent to a 1-3-1 corner.\n";
 	}
 	return returnVal;
 }

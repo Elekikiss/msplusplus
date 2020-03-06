@@ -20,6 +20,7 @@ using namespace std;
 #define MINESWEEPER_HARD_HEIGHT 16
 #define MINESWEEPER_HARD_MINES 99
 #define MINESWEEPER_LIVES 1
+// For testing purposes, Lives was set to 1; it is intended to be 3 for playing.
 
 class boardOptions {
 public:
@@ -53,7 +54,8 @@ public:
 	void setMine();
 	void removeMine();
 	void setPressed();
-	void setChained();
+	void setCleared();
+	void setClearedToPressed();
 	void setFlag();
 	void setQuestioning();
 	void unset();
@@ -133,7 +135,7 @@ public:
 	void solveTile(solverTile& target);
 	void solvePattern(solverTile& target);
 	void recursiveAdjSolve(solverTile& target);
-	void resetRemainder();
+	int resetRemainder();
 	void solveBoard();
 	void solverFlag(solverTile& target);
 	void solverRSFlag(solverTile& target);
@@ -141,13 +143,14 @@ public:
 	void removeMineOnTile(solverTile& target);
 	bool peekForAdjPressed(solverTile& target);
 	bool peekForAdjEmpty(solverTile& target);
+	bool peekForAdjAllMines(solverTile& target);
 	void flagAdjExcShared(solverTile& target, solverTile& constraint);
 	void pressAdjExcShared(solverTile& target, solverTile& constraint);
 	
 	int countSharedFree(solverTile& tileA, solverTile& tileB);
 	
 	/* Solver Patterns */
-	bool testPattLargeAdjSmall(solverTile& target);
+	bool testPattSharedAdjs(solverTile& target);
 	bool testPatt131Corner(solverTile& target);
 
 private:

@@ -56,21 +56,19 @@ void gameTile::removeMine() {
 }
 
 void gameTile::setPressed() {
-	if (cState == 'E' || cState == 'Q') {
-		cState = 'P';
-	}
+	if (cState == 'E' || cState == 'Q') cState = 'P';
 }
 
-void gameTile::setChained(){
-	if (cState == 'P'){
-		cState = 'C';
-	}
+void gameTile::setCleared(){
+	if (cState == 'P') cState = 'C';
+}
+
+void gameTile::setClearedToPressed(){
+	if (cState == 'C') cState = 'P';
 }
 
 void gameTile::setFlag() {
-	if (cState == 'E' || cState == 'Q') {
-		cState = 'F';
-	}
+	if (cState == 'E' || cState == 'Q') cState = 'F';
 }
 
 void gameTile::unset() {
@@ -78,12 +76,8 @@ void gameTile::unset() {
 }
 
 void gameTile::setQuestioning() {
-	if (cState == 'Q') {
-		cState = 'E';
-	}
-	else if (cState == 'E') {
-		cState = 'Q';
-	}
+	if (cState == 'Q') cState = 'E';
+	else if (cState == 'E') cState = 'Q';
 }
 
 void gameTile::incAdjMines() {

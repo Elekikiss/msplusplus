@@ -191,7 +191,7 @@ void gameBoard::pressTile(int r, int c) {
 			return;
 		}
 		else {
-			matrixAccessor[r][c].setChained();
+			matrixAccessor[r][c].setCleared();
 			doOnAllAdj(&gameBoard::pressTile, r, c);
 		}
 	}
@@ -209,7 +209,7 @@ void gameBoard::pressTile(int r, int c) {
 		}
 	}
 	if (blank) {
-		matrixAccessor[r][c].setChained();
+		matrixAccessor[r][c].setCleared();
 		doOnAllAdj(&gameBoard::pressTile, r, c);
 	}
 }
@@ -223,7 +223,8 @@ void gameBoard::pressTileWOChain(int r, int c) {
 		matrixAccessor[r][c].setPressed();
 		doOnAllAdj(&gameTile::decAdjTile, r, c);
 		if (matrixAccessor[r][c].isMine()) {
-			minesPressed++;
+			printBoard(std::cerr);
+			exit(1);
 		}
 		else {
 			safeTilesLeft--;
@@ -408,7 +409,7 @@ bool gameBoard::playBoard() {
 			std::cout << "You have won the game! \n";
 			return 0;
 		}
-		if (minesPressed > 3) {
+		if (minesPressed >= MINESWEEPER_LIVES) {
 			std::cout << "You have lost the game! \n";
 			return 1;
 		}
