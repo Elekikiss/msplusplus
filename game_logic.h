@@ -163,6 +163,11 @@ public:
 	void solveTile(solverTile& target);
 	void solvePattern(solverTile& target);
 	
+	// Resetters
+	int resetRemainder(bool bProgSinceReset);
+	void removeMineOnTile(solverTile& target);
+	int removeMineSquare(solverTile& target, int sideLength);
+	
 	// Recursive Callers
 	void recursiveAdjSolve(solverTile& target);
 	void solverPressAllAdj(solverTile& target);
@@ -175,11 +180,6 @@ public:
 	void solverPress(solverTile& target);
 	void flagAdjExcShared(solverTile& target, solverTile& constraint);
 	void pressAdjExcShared(solverTile& target, solverTile& constraint);
-	
-	// Resetters
-	int resetRemainder();
-	void removeMineOnTile(solverTile& target);
-	int removeMine3x3(solverTile& target);
 	
 	// Adjacent Tile Peekers
 	bool peekForAdjPressed(solverTile& target);

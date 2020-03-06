@@ -53,6 +53,7 @@ void boardSolver::solveBoard() {
 	int width = currBoard->getWidth() + 1;
 	solverTile target;
 	bProgress = false;
+	bool bProgSinceReset = false;
 	
 	ofstream demoText;
 	demoText.open("demoBoardSolving.txt");
@@ -77,9 +78,10 @@ void boardSolver::solveBoard() {
 					}
 				}
 			}
+			if (bProgress == true) bProgSinceReset = true;
 		}while (bProgress == true);
 		
-		if (resetRemainder() == 0){
+		if (resetRemainder(bProgSinceReset) == 0){
 			break;
 		}
 	}
@@ -133,6 +135,131 @@ void boardSolver::solvePattern(solverTile& target){
 
 
 // End of Driver Functions ============================================================================================
+
+
+
+// Resetters
+
+// The following function holds (most) of the logic required to fix a board that cannot be solved.
+// Some of the helper functions within the class may be necessary for this function, hence the "(most)"
+
+int boardSolver::resetRemainder(bool bProgSinceReset) {
+	int height = currBoard->getHeight();
+	int width = currBoard->getWidth();
+	solverTile target;
+	int minesToPlace = 0;
+	int minesRemoved = 0;
+	int maxMineIndex = 0;
+	int vPotMineIndex = 0;
+	char state;
+	
+	
+	vector<solverTile> possMineLocs;
+	
+	for (int i = 1; i <= height; i++) {
+		for (int j = 1; j <= width; j++) {
+			if ((*currBoard)(i, j)->getState() == 'E'){
+				target.r = i;
+				target.c = j;
+				target.tile = (*currBoard)(i, j);
+				possMineLocs.push_back(target);
+				maxMineIndex++;
+				if ((*currBoard)(i, j)->isMine()){
+					if(!(peekForAdjAllMines(target))){
+						removeMineOnTile(target);
+						minesRemoved++;
+					}
+					else if (bProgSinceReset == false){
+						// In the event that the board is unsolvable, and there are no viable "0-adjacent-mine" tiles
+						// to move a mine to (or in the slightly more likely event that RNG makes it seem to the program it as such)
+						// a 5x5 square around the un-discoverable mine will have all of its mines removed in an attempt to make
+						// the board possible to solve.
+						minesRemoved += removeMineSquare(target, 5);
+					}
+				}
+				else if (peekForAdjAllMines(target) && peekForAdjEmpty(target)){
+					minesRemoved += removeMineSquare(target, 3);
+				}
+			}
+		}
+	}
+	
+	if (minesRemoved == 0) return 0;
+	for (int i = 1; i <= height; i++) {
+		for (int j = 1; j <= width; j++) {
+			state = (*currBoard)(i, j)->getState();
+			if(state == 'P' || state == 'C'){
+				target.r = i;
+				target.c = j;
+				target.tile = (*currBoard)(i, j);
+				if ((*currBoard)(i, j)->getAdjMines() == 0){
+					currBoard->unsetTile(i, j);
+					currBoard->doOnAllAdj(&gameTile::setClearedToPressed, i, j);
+					possMineLocs.push_back(target);
+					maxMineIndex++;
+				}
+			}
+		}
+	}
+	
+	minesToPlace = minesRemoved;
+	
+	while (minesToPlace != 0) {
+		vPotMineIndex = rand() % (maxMineIndex);
+		target.r = possMineLocs[vPotMineIndex].r;
+		target.c = possMineLocs[vPotMineIndex].c;
+		target.tile = possMineLocs[vPotMineIndex].tile;
+		if (target.tile->isMine() == 0) {
+			target.tile->setMine();
+			currBoard->doOnAllAdj(&gameTile::incAdjMines, target.r, target.c);
+			minesToPlace--;
+		}
+	}
+	return minesRemoved;
+}
+
+
+
+// The following functions are helper functions to resetRemainder that actually removes a mine from a tile
+
+void boardSolver::removeMineOnTile(solverTile& target) {
+	int r = target.r;
+	int c = target.c;
+	if ((*currBoard)(r, c)->isMine()) {
+		(*currBoard)(r, c)->removeMine();
+		currBoard->doOnAllAdj(&gameTile::decAdjMines, r, c);
+		return;
+	}
+}
+
+
+
+int boardSolver::removeMineSquare(solverTile& target, int sideLength) {
+	int height = currBoard->getHeight() + 1;
+	int width = currBoard->getWidth() + 1;
+	int r = target.r;
+	int c = target.c;
+	int returnVal = 0;
+	signed int indexMin = -((sideLength - 1)/2);
+	signed int indexMax = ((sideLength - 1)/2);
+	
+	for (signed int i = indexMin; i <= indexMax; i++){
+		for (signed int j = indexMin; j <= indexMax; j++){
+			if (((r + i) > height) || ((r + i) < 0) || ((c + j) > width) || ((c + j) < 0)) continue;
+			if ((*currBoard)(r + i, c + j)->isMine()) {
+				(*currBoard)(r + i, c + j)->removeMine();
+				currBoard->doOnAllAdj(&gameTile::decAdjMines, r + i, c + j);
+				currBoard->doOnAllAdj(&gameBoard::unsetTile, r + i, c + j);
+				returnVal++;
+			}
+		}
+	}
+	return returnVal;
+}
+
+
+
+// End of Resetters ===================================================================================================
 
 
 
@@ -344,118 +471,6 @@ void boardSolver::pressAdjExcShared(solverTile& focus, solverTile& constraint){
 
 
 // End of Progressors =================================================================================================
-
-
-
-// Resetters
-
-// The following function holds (most) of the logic required to fix a board that cannot be solved.
-// Some of the helper functions within the class may be necessary for this function, hence the "(most)"
-
-int boardSolver::resetRemainder() {
-	int height = currBoard->getHeight();
-	int width = currBoard->getWidth();
-	solverTile target;
-	int minesToPlace = 0;
-	int minesRemoved = 0;
-	int maxMineIndex = 0;
-	int vPotMineIndex = 0;
-	char state;
-	
-	vector<solverTile> possMineLocs;
-	
-	for (int i = 1; i <= height; i++) {
-		for (int j = 1; j <= width; j++) {
-			if ((*currBoard)(i, j)->getState() == 'E'){
-				target.r = i;
-				target.c = j;
-				target.tile = (*currBoard)(i, j);
-				possMineLocs.push_back(target);
-				maxMineIndex++;
-				if ((*currBoard)(i, j)->isMine()){
-					if(!(peekForAdjAllMines(target))){
-						removeMineOnTile(target);
-						minesRemoved++;
-					}
-				}
-				else if (peekForAdjAllMines(target) && peekForAdjEmpty(target)){
-					minesRemoved += removeMine3x3(target);
-				}
-			}
-		}
-	}
-	
-	if (minesRemoved == 0) return 0;
-	for (int i = 1; i <= height; i++) {
-		for (int j = 1; j <= width; j++) {
-			state = (*currBoard)(i, j)->getState();
-			if(state == 'P' || state == 'C'){
-				target.r = i;
-				target.c = j;
-				target.tile = (*currBoard)(i, j);
-				if ((*currBoard)(i, j)->getAdjMines() == 0){
-					currBoard->unsetTile(i, j);
-					currBoard->doOnAllAdj(&gameTile::setClearedToPressed, i, j);
-					possMineLocs.push_back(target);
-					maxMineIndex++;
-				}
-			}
-		}
-	}
-	
-	minesToPlace = minesRemoved;
-	
-	while (minesToPlace != 0) {
-		vPotMineIndex = rand() % (maxMineIndex);
-		target.r = possMineLocs[vPotMineIndex].r;
-		target.c = possMineLocs[vPotMineIndex].c;
-		target.tile = possMineLocs[vPotMineIndex].tile;
-		if (target.tile->isMine() == 0) {
-			target.tile->setMine();
-			currBoard->doOnAllAdj(&gameTile::incAdjMines, target.r, target.c);
-			minesToPlace--;
-		}
-	}
-	return minesRemoved;
-}
-
-
-
-// The following functions are helper functions to resetRemainder that actually removes a mine from a tile
-
-void boardSolver::removeMineOnTile(solverTile& target) {
-	int r = target.r;
-	int c = target.c;
-	if ((*currBoard)(r, c)->isMine()) {
-		(*currBoard)(r, c)->removeMine();
-		currBoard->doOnAllAdj(&gameTile::decAdjMines, r, c);
-		return;
-	}
-}
-
-
-
-int boardSolver::removeMine3x3(solverTile& target) {
-	int r = target.r;
-	int c = target.c;
-	int returnVal = 0;
-	
-	for (signed int i = -1; i < 2; i++){
-		for (signed int j = -1; j < 2; j++){
-			if ((*currBoard)(r + i, c + j)->isMine()) {
-				(*currBoard)(r + i, c + j)->removeMine();
-				currBoard->doOnAllAdj(&gameTile::decAdjMines, r + i, c + j);
-				currBoard->doOnAllAdj(&gameBoard::unsetTile, r + i, c + j);
-				returnVal++;
-			}
-		}
-	}
-	return returnVal;
-}
-
-
-
-// End of Resetters ===================================================================================================
 
 
 
