@@ -1,6 +1,6 @@
 CPP = g++
-CPP_FLAGS = -c -Wall -s -g
-LINK = g++ -g
+CPP_FLAGS = -c -Wall -s
+LINK = g++
 VERSION = 0.0.1
 PROJECT = MINESWEEPER++
 
